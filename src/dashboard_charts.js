@@ -1,10 +1,11 @@
 // Calendar buckets keep quiet trading periods visible instead of joining over them.
-function salesSeries(rows, period) {
+function salesSeries(rows, period, bounds) {
   if (!rows.length) return [];
   const monthly = period === 'all';
   const dates = rows.map(row => row.date).sort();
-  const start = monthly ? `${dates[0].slice(0, 7)}-01` : dates[0];
-  const end = monthly ? `${dates[dates.length - 1].slice(0, 7)}-01` : dates[dates.length - 1];
+  const first = bounds ? bounds.start : dates[0], last = bounds ? bounds.end : dates[dates.length - 1];
+  const start = monthly ? `${first.slice(0, 7)}-01` : first;
+  const end = monthly ? `${last.slice(0, 7)}-01` : last;
   const buckets = new Map();
   const cursor = new Date(`${start}T00:00:00Z`);
   while (cursor.toISOString().slice(0, 10) <= end) {
@@ -18,6 +19,7 @@ function salesSeries(rows, period) {
   }
   rows.forEach(row => {
     const bucket = buckets.get(row.date.slice(0, monthly ? 7 : 10));
+    if (!bucket) return;
     for (const key of ['gross', 'margin', 'after']) bucket[key] += row[key] || 0;
   });
   return [...buckets.values()];

@@ -2,6 +2,14 @@
 
 All notable public changes to Margin Map are recorded here.
 
+## Unreleased
+
+- Two independent critique rounds drove adversarial analytical fixes: preserve
+  losses across the revenue flow and variable-cost bridge, retain free products
+  with costs, show undefined margin rates as unavailable, expose warning details,
+  and distinguish missing comparison baselines from zero growth.
+- Chart ranges retain quiet days at the boundaries of the selected period.
+
 ## 1.2.0 - 2026-10-31
 
 - Reconciled Excel payment fees with per-order rounding in the pipeline, made

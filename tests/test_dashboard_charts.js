@@ -3,6 +3,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const {salesSeries} = require('../src/dashboard_charts.js');
+test('selected calendar boundaries retain leading and trailing quiet days', () => {
+  const series=salesSeries([{date:'2026-10-28',gross:100,margin:30,after:20}], 'week',
+    {start:'2026-10-25',end:'2026-10-31'});
+  assert.equal(series.length,7);
+  assert.equal(series[0].key,'2026-10-25');assert.equal(series[0].gross,0);
+  assert.equal(series[3].gross,100);assert.equal(series[6].gross,0);
+});
 test('calendar series retains quiet days and negative results', () => {
   const rows = [{date:'2026-02-28',gross:100,margin:30,after:-10},
                 {date:'2026-03-02',gross:80,margin:-20,after:-40}];

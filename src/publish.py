@@ -31,7 +31,12 @@ window.drawSankey=function(data){
   const discount=Math.max(0,data.discount||0),vat=Math.max(0,afterDiscount-net),cost=Math.max(0,net-data.margin),contribution=Math.max(0,data.margin||0);
   if(!list){svg.innerHTML='<text x="380" y="135" text-anchor="middle" fill="#77809e" font-size="13">No sales in this selection</text>';return;}
   const share=value=>(100*value/list).toFixed(1)+"% of list price";
-  const h=value=>Math.max(3,120*value/list),listH=h(list),afterH=h(afterDiscount),discountH=h(discount),netH=h(net),vatH=h(vat),costH=h(cost),contributionH=h(contribution);
+  if(data.margin<0){
+    svg.setAttribute('aria-label','Negative contribution: product cost exceeds net revenue. Signed breakdown shown instead of a positive-flow Sankey.');
+    const lines=[['List price',list],['Discounts',-discount],['VAT',-vat],['Net revenue',net],['Product cost',-cost],['Contribution',data.margin]];
+    svg.innerHTML='<text x="20" y="24" fill="#b54b55" font-size="14" font-weight="700">Product cost exceeds net revenue</text>'+lines.map(([name,value],i)=>'<text x="20" y="'+(59+i*36)+'" fill="#252a4a" font-size="12">'+name+'</text><text x="720" y="'+(59+i*36)+'" text-anchor="end" fill="'+(value<0?'#b54b55':'#252a4a')+'" font-size="12">'+esc(euro(value))+' · '+share(value)+'</text>').join('');return;
+  }
+  const h=value=>120*value/list,listH=h(list),afterH=h(afterDiscount),discountH=h(discount),netH=h(net),vatH=h(vat),costH=h(cost),contributionH=h(contribution);
   const sourceY=62,mainY=62,lossY=194;
   const flow=(x1,y1,height1,x2,y2,height2,color)=>{const mid=(x1+x2)/2;return '<path d="M'+x1+','+y1+' C'+mid+','+y1+' '+mid+','+y2+' '+x2+','+y2+' L'+x2+','+(y2+height2)+' C'+mid+','+(y2+height2)+' '+mid+','+(y1+height1)+' '+x1+','+(y1+height1)+' Z" fill="'+color+'" opacity=".82"/>';};
   const node=(x,y,height,color)=>'<rect x="'+x+'" y="'+y+'" width="13" height="'+height+'" rx="4" fill="'+color+'"/>';
@@ -397,12 +402,19 @@ def controls_block(result):
             state = "<b class='status warning'>%d warnings</b>" % warnings
         else:
             state = "<b class='status good'>Pass</b>"
-        rows.append("<tr><td>%s</td><td>%s</td></tr>" % (name, state))
+        messages = [message for control, message in result.errores + result.avisos if control == name]
+        details = ("<ul>%s</ul>" % "".join("<li>%s</li>" % html.escape(message) for message in messages)
+                   if messages else "")
+        rows.append("<tr><td>%s%s</td><td>%s</td></tr>" % (html.escape(name), details, state))
     return "\n".join(rows)
 
 
 def alerts_block(result):
     if not result.errores:
+        if result.avisos:
+            return ("<div class='integrity issue'><div><b>Review data warnings</b>"
+                    "<p>%d advisory warnings. Read their explanations in Data controls before using the figures.</p>"
+                    "</div><span>Review needed</span></div>" % len(result.avisos))
         note = "%d advisory warnings" % len(result.avisos) if result.avisos else "All checks pass"
         return "<div class='integrity okay'><div><b>Data integrity</b><p>%s</p></div><span>Ready to use</span></div>" % note
     items = "".join("<li>%s</li>" % html.escape(message) for _, message in result.errores)
