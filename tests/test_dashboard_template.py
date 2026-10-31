@@ -14,15 +14,17 @@ class TestDashboardTemplate(unittest.TestCase):
             cls.template = handle.read()
 
     def test_product_name_preserves_store_identity(self):
-        self.assertIn('<title>Margin Map · {{BRAND}} · Performance dashboard</title>', self.template)
-        self.assertIn('MARGIN MAP<small>{{BRAND_UPPER}} · v{{APP_VERSION}}</small>', self.template)
+        self.assertIn('<title>Margin Map · {{BRAND}} · Shopify margin dashboard</title>', self.template)
+        self.assertIn('MARGIN MAP<small>Margins for Shopify stores</small>', self.template)
+        # The version stays traceable without being part of the reading surface.
+        self.assertIn('<meta name="generator" content="Margin Map {{APP_VERSION}}">', self.template)
 
     def test_public_notice_and_scope_are_not_sidebar_only(self):
         footer = self.template.split("<footer>", 1)[1].split("</footer>", 1)[0]
         self.assertIn("{{SIDEBAR_NOTE}}", footer)
         self.assertIn("not net profit", footer)
         self.assertIn("refunds require separate reconciliation", footer)
-        self.assertIn("Margin Map v{{APP_VERSION}}", footer)
+        self.assertIn("Source: {{SOURCE_LABEL}}", footer)
         self.assertIn("footer{font-size:13px;line-height:1.5}", self.template)
 
     def test_uses_portable_last_date_selection(self):

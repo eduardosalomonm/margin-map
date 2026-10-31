@@ -2,8 +2,8 @@
 
 ## I only want to see the finished dashboard
 
-Double-click `OPEN ONLINE DASHBOARD.html` in this folder. It opens the polished
-public dashboard in your browser. No installation is required.
+Double-click `OPEN ONLINE DASHBOARD.html` in this folder. It opens the interactive
+dashboard for the Luma Vale sample store in your browser. No installation is required.
 
 ## I want to change the Excel data
 
@@ -13,7 +13,7 @@ public dashboard in your browser. No installation is required.
 4. Double-click the launcher in the project root:
    - macOS: `Run dashboard.command`
    - Windows: `Run dashboard.bat`
-5. The polished dashboard opens in your browser.
+5. The interactive dashboard opens in your browser.
 
 The launcher requires Python 3. If it is missing, the launcher now stays open and
 shows the installation link or the exact input error to fix.
@@ -25,5 +25,10 @@ shows the installation link or the exact input error to fix.
   from its official GitHub repository.
 - If the window shows an error, keep it open and copy the complete message.
 
-The Excel Dashboard is the instant companion. The online dashboard is the polished,
-filterable version with all business views and the executive PDF.
+The Excel Dashboard is the instant view. The online dashboard adds filters, the
+Scenario lab and the executive PDF.
+
+## I have a Shopify store
+
+Margin Map can read your orders straight from Shopify with read-only access. See
+"Connect a Shopify store" in `../README.md`.

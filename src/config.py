@@ -66,6 +66,19 @@ VARIABLE_COST_FIELDS = ("logistica_por_pedido", "comision_pago_pct", "comision_p
 MONTH_PATTERN = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
 
+def data_source(costs):
+    """Where the figures come from, and whether they describe a sample store.
+
+    A store is a sample only when its model says so, or when it uses a reserved
+    .example domain. A private Shopify model therefore never shows a sample label.
+    """
+    meta = (costs or {}).get("meta") or {}
+    label = "Excel import" if meta.get("actualizado") == "from Excel" else "Shopify Admin API"
+    domain = str(meta.get("dominio", ""))
+    sample = bool(meta.get("demo")) or domain.endswith(".example")
+    return label, sample
+
+
 def variable_costs(costs):
     """The optional costs between product margin and profit, or None when undeclared.
 

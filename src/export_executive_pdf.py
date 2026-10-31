@@ -11,8 +11,7 @@ import sqlite3
 import sys
 import textwrap
 
-from config import costs_path, load_costs, variable_costs
-from project_meta import version
+from config import costs_path, data_source, load_costs, variable_costs
 
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -141,10 +140,12 @@ def main():
     if model is not None and after >= 0 and not decision.startswith(("Product margin is positive", "A ")):
         decision += " After shipping, fulfilment, fees and advertising, %s (%s of net sales) remains." % (currency(after), pct(after_pct))
 
+    source, sample = data_source(costs)
     stream = []
     stream.extend([rect(0, 770, 595, 72, "5A4FE8"), text(42, 805, "Margin Map | Executive summary", 19, "FFFFFF", True),
-                   text(42, 785, "%s synthetic demo - %s to %s - data through %s" %
-                        (ellipsize(brand, 24), window[0], window[1], window[1]), 9, "E8E7FF")])
+                   text(42, 785, "%s%s - %s to %s - %s" %
+                        (ellipsize(brand, 24), " (sample store)" if sample else "", window[0], window[1], source),
+                        9, "E8E7FF")])
     stream.append(text(42, 740, "Commercial performance", 14, "252A4A", True))
     cards = [("Gross sales", currency(gross)), ("Contribution margin", currency(margin)),
              ("Orders", "{:,.0f}".format(orders)), ("Margin rate", pct(margin_pct))]
@@ -185,8 +186,9 @@ def main():
     stream.extend([text(58, 146, "Use the interactive dashboard to filter by date, SKU, bundle and promotion code.", 9),
                    text(42, 92, scope[0], 8, "77809E"),
                    text(42, 78, scope[1], 8, "77809E"),
-                   text(42, 64, "Source: validated Excel input or Shopify snapshot. Public demo figures are synthetic, not business results.", 8, "77809E"),
-                   text(42, 48, "Margin Map v%s is local decision support, not an accounting or tax reporting system." % version(), 8, "77809E")])
+                   text(42, 64, ("Source: %s, checked by integrity controls before publication.%s"
+                                 % (source, " Sample-store figures are illustrative." if sample else "")), 8, "77809E"),
+                   text(42, 48, "Margin Map is decision support, not an accounting or tax reporting system.", 8, "77809E")])
 
     output = os.path.abspath(args.output)
     os.makedirs(os.path.dirname(output), exist_ok=True)

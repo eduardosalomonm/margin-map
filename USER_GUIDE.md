@@ -1,17 +1,21 @@
 # Margin Map · User guide
 
-**Read the margin correctly:** it is product margin after discounts and VAT,
-minus declared product costs, not net profit. Shipping, payment fees, acquisition
-and overhead are excluded; reconcile refunds separately for any real-store use.
-Public demo figures are synthetic and are not achieved business results.
+Margin Map reads a Shopify store's orders directly, or any other store's orders
+from the Excel template. This guide covers the Excel template; to connect
+Shopify, see [Connect a Shopify store](#connect-a-shopify-store).
+
+**Read the margin correctly:** product margin is sales after discounts and VAT,
+minus declared product costs. It is not net profit: shipping, payment fees and
+advertising appear only when declared as variable costs, overhead is always
+excluded, and refunds are reconciled separately.
 
 For the shortest possible route, open [`TLDR.README/README.md`](TLDR.README/README.md).
 
 ## Fastest route: edit Excel, double-click, view dashboard
 
-This is the recommended public experience. The starter workbook contains 12
-rolling months of synthetic Luma Vale data (€83,755.43 gross sales after
-discounts), so it works without Shopify credentials.
+The template ships with Luma Vale, a sample store with 12 months of illustrative
+orders (€83,755.43 gross sales after discounts). Replace its values with your
+store's to analyse your own margins; no Shopify credentials are needed.
 
 1. Install Python 3.8+ and verify it in Terminal, PowerShell or Command Prompt:
 
@@ -26,7 +30,7 @@ discounts), so it works without Shopify credentials.
 
    | Sheet | What it controls |
    |---|---|
-   | `Dashboard` | Formula-driven Excel companion. It updates immediately and links to the polished online dashboard. |
+   | `Dashboard` | Formula-driven Excel view. It updates immediately and links to the interactive online dashboard. |
    | `Settings` | Store name, VAT, target window, the `Scenario` / `Actual` pricing mode and optional fulfilment, payment and advertising costs |
    | `Catalogue` | Products and bundles together, with costs, current prices and stock; edit yellow values |
    | `Pricing & promotions` | Live promotion rules first, then price-history reference; edit yellow values |
@@ -218,12 +222,14 @@ as `--output output/store-a/dashboard.html`. Each folder has a single
 that PDF. If a file error appears, close apps locking the output files and check
 that you can write to the destination folder.
 
-## Shopify mode
+## Connect a Shopify store
 
-The Excel workflow is separate from the optional live Shopify connection. For a
-private store, keep `.env` and the private cost model outside Git, run
-`python3 src/check_access.py`, then extract and reconcile orders before publishing.
-See [README.md](README.md#private-shopify-mode) for the commands.
+Shopify stores do not need the Orders sheet: Margin Map reads orders from the
+Shopify Admin API with read-only access (`read_orders`, `read_products`). Keep
+`.env` and the store's cost model on your computer, run
+`python3 src/check_access.py`, then extract orders and reconcile them against
+Shopify's unit count before publishing. See
+[README.md](README.md#connect-a-shopify-store) for the commands.
 
 ## Contributors: verify before pushing
 

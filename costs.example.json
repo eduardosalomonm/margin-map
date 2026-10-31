@@ -1,5 +1,5 @@
 {
-  "meta": {"marca": "Luma Vale", "dominio": "lumavale.example", "moneda": "EUR", "actualizado": "2026-08-14", "objetivo_ventas_brutas": 100000, "nota_costes": "Synthetic landed costs for the public portfolio demo."},
+  "meta": {"marca": "Luma Vale", "dominio": "lumavale.example", "moneda": "EUR", "actualizado": "2026-08-14", "objetivo_ventas_brutas": 100000, "nota_costes": "Example landed costs for the Luma Vale sample store."},
   "iva": {"tipo_pct": 21.0, "precios_incluyen_iva": true},
   "productos": {
     "SKU-A": {"nombre": "Renewal Serum", "coste_unitario": 12.8, "coste_fuente": "Synthetic supplier invoice", "precio_web": 69.9, "precios": [{"desde": "2025-08-01", "precio": 64.0, "fuente": "Synthetic launch price"}, {"desde": "2026-01-01", "precio": 69.9, "fuente": "Synthetic price increase"}], "tirada": 4000},

@@ -28,6 +28,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT = os.path.join(BASE, "assets", "unit-economics-input.xlsx")
 
 STORE = "Luma Vale"
+ONLINE_DASHBOARD = "https://marginmap.eilvi.com/"
 DOMAIN = "lumavale.example"
 CURRENCY = "EUR"
 VAT = 21.0
@@ -44,12 +45,12 @@ PRODUCTS = [
 ]
 
 PRICE_HISTORY = [
-    ("SKU-A", "2025-08-01", 64, "Synthetic launch price"),
-    ("SKU-A", "2026-01-01", 69.90, "Synthetic price increase"),
-    ("SKU-B", "2025-08-01", 18, "Synthetic launch price"),
-    ("SKU-B", "2026-03-01", 19, "Synthetic price increase"),
-    ("SKU-C", "2025-08-01", 29, "Synthetic launch price"),
-    ("SKU-F", "2025-08-01", 34, "Synthetic launch price"),
+    ("SKU-A", "2025-08-01", 64, "Launch price"),
+    ("SKU-A", "2026-01-01", 69.90, "Price increase"),
+    ("SKU-B", "2025-08-01", 18, "Launch price"),
+    ("SKU-B", "2026-03-01", 19, "Price increase"),
+    ("SKU-C", "2025-08-01", 29, "Launch price"),
+    ("SKU-F", "2025-08-01", 34, "Launch price"),
 ]
 
 # sku, name, price incl VAT, contents, declared solo total, declared saving, note
@@ -569,18 +570,18 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
         ["Start with Dashboard. Edit yellow cells only; blue and purple cells calculate automatically."],
         [""],
         ["Sheet", "What it is for"],
-        ["Dashboard", "Live, formula-driven Excel companion, including what remains after variable costs. The polished interactive dashboard is online."],
+        ["Dashboard", "Live, formula-driven Excel view, including what remains after variable costs. The interactive dashboard is online."],
         ["Settings", "Store identity, VAT rate, targets, pricing mode and optional fulfilment, payment and advertising costs."],
         ["Catalogue", "Products and bundles together. Use Type to distinguish them."],
         ["Pricing & promotions", "Price history and the discount rules that drive calculated order discounts."],
         ["Pricing planner", "Live Excel price, margin and bundle-saving checks. It updates when yellow price inputs change."],
         ["Orders", "Blue price and discount cells follow Catalogue and promotion inputs in Scenario mode."],
         [""],
-        ["This copy holds %d order lines across %d orders (%d units, %s %s gross after "
+        ["Luma Vale is a sample store. This copy holds %d order lines across %d orders (%d units, %s %s gross after "
          "discounts) for the 12 months to %s."
          % (len(orders), order_count, units, CURRENCY, "{:,.0f}".format(gross),
             end_day.isoformat())],
-        ["Regenerate it any time with: python3 src/make_demo_workbook.py"],
+        ["Replace the Orders, Catalogue and Settings values with your own store's, or connect Shopify directly."],
     ]
 
     settings = [
@@ -615,7 +616,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
                   "Claimed saving", "Confirmed (TRUE/FALSE)", "Cost source", "Notes", "Bundle discount %"]]
     for sku, name, cost, price, batch, stock, note in PRODUCTS:
         catalogue.append(["Product", sku, name, Styled(cost, CURRENCY_INPUT), Styled(price, CURRENCY_INPUT), batch, stock, "", "", "", "",
-                          "Synthetic supplier invoice", note, ""])
+                          "Supplier invoice", note, ""])
     for index, (sku, name, price, contents, solo, saving, note) in enumerate(BUNDLES, start=7):
         discount_pct = round(saving / solo, 6)
         catalogue.append(["Bundle", sku, name, "",
@@ -714,9 +715,9 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
         ["Instant workbook view: yellow Catalogue and promotion edits flow through blue calculated Orders values."],
         [""],
         ["About this workbook"],
-        ["Built first for a Shopify e-commerce store, then adapted as a credential-free public demo."],
-        ["This tab updates immediately in Excel. The polished interactive dashboard is published online."],
-        [Styled("Online dashboard", PRIMARY), "https://eduardosalomonm.github.io/shopify-unit-economics/"],
+        ["Built for Shopify stores. Margin Map reads orders from the Shopify Admin API, or from this workbook for other platforms."],
+        ["This tab updates immediately in Excel. The interactive dashboard adds filters, scenarios and the executive PDF."],
+        [Styled("Online dashboard", PRIMARY), ONLINE_DASHBOARD],
         [""],
         ["Live commercial picture", "Value"],
         ["Gross sales", Formula(gross_formula, round(gross, 2), PRIMARY_CURRENCY)],

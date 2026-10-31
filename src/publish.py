@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import checks  # noqa: E402
-from config import ConfigError, costs_path, load_costs, variable_costs  # noqa: E402
+from config import ConfigError, costs_path, data_source, load_costs, variable_costs  # noqa: E402
 from project_meta import version  # noqa: E402
 from transform import catalogo, latest_snapshot  # noqa: E402
 
@@ -273,6 +273,17 @@ def pace(costs, units_sold, today=None):
             "on_track": projected >= target_units, "not_started": False}
 
 
+def source_note(costs):
+    """Say where the numbers come from. A sample store says so once, plainly."""
+    label, sample = data_source(costs)
+    if sample:
+        return ("<b>Sample store</b><br>Illustrative orders. Connect a Shopify store, or "
+                "import orders from another platform, to see your own margins.")
+    if label == "Excel import":
+        return "<b>Excel import</b><br>Orders and costs from this store's workbook."
+    return "<b>Connected to Shopify</b><br>Orders read from the Shopify Admin API with read-only access."
+
+
 def scope_note(model):
     if model is None:
         return ("Product margin means sales after discounts and VAT, minus declared product "
@@ -481,10 +492,8 @@ def main():
         "{{APP_VERSION}}": html.escape(version()),
         "{{BRAND}}": html.escape(costs.get("meta", {}).get("marca", "Store")),
         "{{BRAND_UPPER}}": html.escape(costs.get("meta", {}).get("marca", "Store").upper()),
-        "{{SIDEBAR_NOTE}}": ("<b>Public demo</b><br>All figures are synthetic and refresh from "
-                             "the editable Excel workbook."
-                             if costs.get("meta", {}).get("demo", True)
-                             else "<b>Private data</b><br>Generated from this store's own orders."),
+        "{{SIDEBAR_NOTE}}": source_note(costs),
+        "{{SOURCE_LABEL}}": html.escape(data_source(costs)[0]),
         "{{CURRENCY_CODE}}": html.escape(currency_code),
         "{{CURRENCY_SYMBOL}}": SYMBOLS.get(currency_code, currency_code),
         "{{ANNUAL_TARGET_VALUE}}": "%.2f" % annual_target,

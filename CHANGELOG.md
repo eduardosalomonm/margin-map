@@ -9,6 +9,10 @@ All notable public changes to Margin Map are recorded here.
   with costs, show undefined margin rates as unavailable, expose warning details,
   and distinguish missing comparison baselines from zero growth.
 - Chart ranges retain quiet days at the boundaries of the selected period.
+- Repositioned Margin Map as margin analytics for Shopify stores: the dashboard,
+  PDF and workbook name their data source, label the sample store once, and no
+  longer show version numbers or demo wording on the reading surface.
+- Fixed the online-dashboard links, which now point to https://marginmap.eilvi.com/.
 
 ## 1.2.0 - 2026-10-31
 
