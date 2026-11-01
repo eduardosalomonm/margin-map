@@ -17,6 +17,8 @@ pasting an order export into the included Excel template.
 The online dashboard shows **Luma Vale**, a sample store with 12 months of
 illustrative orders, so the analysis can be explored before connecting real data.
 
+![Thirty-second tour: recommended actions, the cost ladder, product economics, promotions and the Scenario lab](assets/demo.gif)
+
 ## What it answers
 
 - **Which products and bundles carry the margin**, after discounts, VAT and product cost.
