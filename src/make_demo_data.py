@@ -96,11 +96,14 @@ def pick_type(rng):
 def line_node(index, sku, title, price, discount=0.0):
     return {"node": {
         "id": "gid://shopify/LineItem/%d" % index, "title": title, "sku": sku,
-        "quantity": 1, "variant": None, "product": None,
+        "quantity": 1, "currentQuantity": 1, "isGiftCard": False, "variant": None, "product": None,
         "originalUnitPriceSet": money(price), "discountedUnitPriceSet": money(price),
         "totalDiscountSet": money(0.0),
         "discountAllocations": ([{"allocatedAmountSet": money(discount)}] if discount else []),
         "taxable": True,
+        # The same shape Shopify returns, so the fixture exercises the tax-line path.
+        "taxLines": [{"ratePercentage": 21.0,
+                      "priceSet": money(round((price - discount) - (price - discount) / VAT, 2))}],
     }}
 
 
@@ -121,7 +124,8 @@ def order_node(index, date, lines):
         "createdAt": "%sT%02d:%02d:00Z" % (date, (index * 7) % 20 + 2, (index * 13) % 60),
         "cancelledAt": None, "displayFinancialStatus": "PAID", "test": False,
         "currentTotalPriceSet": money(net), "currentTotalDiscountsSet": money(discount_total),
-        "totalShippingPriceSet": money(0.0), "currentTotalTaxSet": money(tax),
+        "totalShippingPriceSet": money(0.0), "currentShippingPriceSet": money(0.0),
+        "totalRefundedSet": money(0.0), "currentTotalTaxSet": money(tax),
         "taxesIncluded": True, "discountCodes": ["WELCOME10"] if discount_total else [],
         "lineItems": {"edges": [line_node(index * 100 + position, sku, title, price, discount)
                                 for position, (sku, title, price, discount)
@@ -193,7 +197,8 @@ def main():
     path = os.path.join(RAW_DIR, name)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump({"extracted": datetime.datetime.now().isoformat(),
-                   "store": "demo-store.myshopify.com", "pedidos": orders}, handle,
+                   "store": "demo-store.myshopify.com", "zona_horaria": "Europe/Madrid",
+                   "moneda": "EUR", "pedidos": orders}, handle,
                   ensure_ascii=False, indent=1)
     print("Synthetic snapshot written: %s" % os.path.relpath(path, BASE))
     print("%d orders · €%s gross sales after discounts" % (len(orders), "%.2f" % gross_sales(orders)))

@@ -43,7 +43,7 @@ function renderScenario() {
     decision.textContent = ''; return;
   }
   const metrics = [
-    ['Gross sales', base.gross, scenario.gross, euro],
+    ['Sales incl. VAT', base.gross, scenario.gross, euro],
     ['Product cost', base.net - base.margin, scenario.cost, euro],
     ['Units', base.units, scenario.units, number],
     ['Product margin', base.margin, scenario.margin, euro]

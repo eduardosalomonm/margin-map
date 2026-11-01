@@ -194,9 +194,14 @@ def inventory_metrics(conn, costs, window_days=90):
     Stock is never inferred from sales: a store that does not track it gets no
     inventory view rather than a fabricated one.
     """
-    last = conn.execute("SELECT MAX(fecha) FROM lineas").fetchone()[0]
+    first, last = conn.execute("SELECT MIN(fecha), MAX(fecha) FROM lineas").fetchone()
     if not last:
         return []
+    # With less history than the window, divide by the days actually observed;
+    # a 30-day extract divided by 90 days would triple every cover figure.
+    observed = (datetime.date(*[int(p) for p in last.split("-")])
+                - datetime.date(*[int(p) for p in first.split("-")])).days + 1
+    window_days = max(1, min(window_days, observed))
     cutoff = (datetime.date(*[int(part) for part in last.split("-")])
               - datetime.timedelta(days=window_days)).isoformat()
     recent = dict(conn.execute(
@@ -466,7 +471,10 @@ def main():
     contribution_margin = sum(row["margin"] for row in monthly)
     units = sum(row["units"] for row in monthly)
     orders = sum(row["orders"] for row in monthly)
-    annual_target = float(costs.get("meta", {}).get("objetivo_ventas_brutas", gross_sales))
+    # Without a declared target there is nothing to measure progress against. A
+    # fallback to the store's own sales would always read "100% reached".
+    declared_target = (costs.get("meta") or {}).get("objetivo_ventas_brutas")
+    annual_target = float(declared_target) if declared_target else 0.0
     target_progress = min(100, 100 * gross_sales / annual_target) if annual_target else 0
     latest = monthly[-1] if monthly else {"gross": 0}
     previous = monthly[-2] if len(monthly) > 1 else {"gross": 0}
@@ -507,6 +515,12 @@ def main():
         "{{CURRENCY_CODE}}": html.escape(currency_code),
         "{{CURRENCY_SYMBOL}}": SYMBOLS.get(currency_code, currency_code),
         "{{ANNUAL_TARGET_VALUE}}": "%.2f" % annual_target,
+        "{{HAS_TARGET}}": "true" if annual_target else "false",
+        "{{STOCK_AS_OF}}": html.escape("stock as of %s" % costs["meta"]["stock_actualizado"]
+                                       if (costs.get("meta") or {}).get("stock_actualizado")
+                                       else "stock as declared"),
+        "{{VARIABLE_COST_HINT}}": ("in the Settings sheet" if data_source(costs)[0] == "Excel import"
+                                   else "to the cost model (costes_variables)"),
         "{{BUNDLE_SKUS_JSON}}": script_json(sorted(sku for sku in bundle_skus if sku)),
         "{{DISCOUNT_RATE}}": percent(trading["discount_rate"]),
         "{{DISCOUNT_TOTAL}}": currency(trading["discount"]),
@@ -537,7 +551,7 @@ def main():
         "{{ORDERS}}": "{:,.0f}".format(orders), "{{AOV}}": currency(gross_sales / orders if orders else 0),
         "{{UNITS}}": "{:,.0f}".format(units), "{{TARGET}}": currency(annual_target),
         "{{TARGET_PROGRESS}}": percent(target_progress), "{{TARGET_PROGRESS_WIDTH}}": "%.1f" % target_progress,
-        "{{TARGET_GAP}}": currency(max(annual_target - gross_sales, 0), 2), "{{LATEST_MONTH}}": currency(latest["gross"], 2),
+        "{{TARGET_GAP}}": currency(max(annual_target - gross_sales, 0)), "{{LATEST_MONTH}}": currency(latest["gross"]),
         "{{LATEST_MONTH_LABEL}}": latest.get("label", ""), "{{MONTHLY_GROWTH}}": "%+.1f%%" % monthly_growth,
         "{{BUNDLE_SALES}}": currency(bundle_sales), "{{BUNDLE_SHARE}}": percent(100 * bundle_sales / gross_sales if gross_sales else 0),
         "{{PRODUCT_ROWS}}": product_rows(products), "{{CONTROLS}}": controls_block(result),
@@ -562,7 +576,7 @@ def main():
         handle.write(page)
     conn.close()
     print("Dashboard generated: %s" % os.path.relpath(OUTPUT, BASE))
-    print("  %s gross sales · %s product margin · %s orders" %
+    print("  %s sales incl. VAT · %s product margin · %s orders" %
           (currency(gross_sales), currency(contribution_margin), "{:,.0f}".format(orders)))
     return 0
 

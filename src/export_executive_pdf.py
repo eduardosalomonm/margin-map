@@ -84,7 +84,7 @@ def pdf_bytes(stream):
 
 
 def priority_actions(conn, costs):
-    """Two concrete next steps, matching the dashboard's Recommended actions."""
+    """Two concrete next steps, using the same rules as the dashboard's Recommended actions."""
     from publish import breakeven_discount  # lazy: publish reads its environment on import
     model = variable_costs(costs)
     result = []
@@ -155,7 +155,7 @@ def main():
     shipping, fulfilment, fees, advertising, after = variable
     after_pct = 100 * after / net if net else 0
     brand = costs.get("meta", {}).get("marca", "Store")
-    target = float(costs.get("meta", {}).get("objetivo_ventas_brutas", gross))
+    target = float((costs.get("meta") or {}).get("objetivo_ventas_brutas") or 0)
     margin_pct = 100 * margin / net if net else 0
     discount_rate = 100 * discount / (gross + discount) if gross + discount else 0
     progress = min(100, 100 * gross / target) if target else 0
@@ -171,10 +171,12 @@ def main():
         decision = "Trading is loss-making: review price, product cost and bundle composition before scaling demand."
     elif margin_pct < 30:
         decision = "Product margin is positive but thin at %s; protect margin before increasing promotion pressure." % pct(margin_pct)
+    elif not target:
+        decision = "%s product margin on %s of sales incl. VAT." % (pct(margin_pct), currency(gross))
     elif progress >= 100:
-        decision = "The imported period has passed its %s gross-sales benchmark with a %s product margin." % (currency(target), pct(margin_pct))
+        decision = "The imported period has passed its %s sales benchmark with a %s product margin." % (currency(target), pct(margin_pct))
     else:
-        decision = "%s product margin on %s gross sales; %s remains to the period benchmark." % (pct(margin_pct), currency(gross), currency(max(target - gross, 0)))
+        decision = "%s product margin on %s of sales incl. VAT; %s remains to the period benchmark." % (pct(margin_pct), currency(gross), currency(max(target - gross, 0)))
     if model is not None and after >= 0 and not decision.startswith(("Product margin is positive", "A ")):
         decision += " After shipping, fulfilment, fees and advertising, %s (%s of net sales) remains." % (currency(after), pct(after_pct))
 
@@ -185,7 +187,7 @@ def main():
                         (ellipsize(brand, 24), " (sample store)" if sample else "", window[0], window[1], source),
                         9, "E8E7FF")])
     stream.append(text(42, 740, "Commercial performance", 14, "252A4A", True))
-    cards = [("Gross sales", currency(gross)), ("Product margin", currency(margin)),
+    cards = [("Sales incl. VAT", currency(gross)), ("Product margin", currency(margin)),
              ("Orders", "{:,.0f}".format(orders)), ("Margin rate", pct(margin_pct))]
     if model is not None:
         cards[2] = ("Margin rate", pct(margin_pct))
@@ -194,13 +196,17 @@ def main():
         x = 42 + index * 132
         stream.extend([rect(x, 668, 120, 55, "F7F7FC"), text(x + 10, 704, label, 8, "77809E"),
                        text(x + 10, 682, value, 14, "252A4A", True)])
-    stream.extend([text(42, 638, "Gross sales benchmark", 11, "252A4A", True), text(405, 638, "%s of %s" % (pct(progress), currency(target)), 9, "77809E"),
-                   rect(42, 619, 510, 8, "E8EAF4"), rect(42, 619, 510 * progress / 100, 8, "5A4FE8"),
+    if target:
+        stream.extend([text(42, 638, "Sales benchmark", 11, "252A4A", True), text(405, 638, "%s of %s" % (pct(progress), currency(target)), 9, "77809E"),
+                       rect(42, 619, 510, 8, "E8EAF4"), rect(42, 619, 510 * progress / 100, 8, "5A4FE8")])
+    else:
+        stream.append(text(42, 630, "No sales target declared; progress is not tracked.", 9, "77809E"))
+    stream.extend([
                    text(42, 594, "%s units sold | %s orders | %s discount investment (%s of list price)" % ("{:,.0f}".format(units), "{:,.0f}".format(orders), currency(discount), pct(discount_rate)), 9, "77809E")])
     if model is not None:
         stream.append(text(42, 578, "Margin %s + shipping %s - fulfilment %s - fees %s - ads %s = %s after variable costs"
                            % (currency(margin), amount(shipping), amount(fulfilment), amount(fees), amount(advertising), currency(after)), 8, "77809E"))
-    stream.extend([text(42, 552, "Top product economics", 14, "252A4A", True), text(42, 532, "PRODUCT", 8, "77809E", True), text(295, 532, "GROSS SALES", 8, "77809E", True), text(415, 532, "PRODUCT MARGIN", 8, "77809E", True), text(515, 532, "MARGIN", 8, "77809E", True)])
+    stream.extend([text(42, 552, "Top product economics", 14, "252A4A", True), text(42, 532, "PRODUCT", 8, "77809E", True), text(295, 532, "SALES INCL. VAT", 8, "77809E", True), text(415, 532, "PRODUCT MARGIN", 8, "77809E", True), text(515, 532, "MARGIN", 8, "77809E", True)])
     y = 512
     for sku, name, product_units, product_gross, product_margin, product_net in products:
         rate = 100 * product_margin / product_net if product_net else 0
@@ -220,10 +226,10 @@ def main():
     stream.extend(text(58, 187 - index * 12, line, 9) for index, line in enumerate(decision_lines[:7]))
     if model is None:
         scope = ("Scope: product margin after discounts and VAT, minus declared product costs; not net profit.",
-                 "Excludes shipping, payment fees, acquisition and overhead; refunds require separate reconciliation.")
+                 "Excludes shipping, payment fees, acquisition and overhead; returns follow the order data.")
     else:
         scope = ("Scope: product margin, then declared shipping, fulfilment, payment fees and advertising; not net profit.",
-                 "Per-order costs are allocated by order value; overhead and refunds are excluded.")
+                 "Per-order costs are allocated by order value; returns follow the order data; overhead is excluded.")
     stream.extend([
                    text(42, 92, scope[0], 8, "77809E"),
                    text(42, 78, scope[1], 8, "77809E"),

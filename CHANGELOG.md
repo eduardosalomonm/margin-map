@@ -24,6 +24,13 @@ All notable public changes to Margin Map are recorded here.
 - "Contribution margin" is now "Product margin"; a Recommended actions card and PDF
   priority actions name the next steps; overstock is flagged; the PDF uses the
   store's currency.
+- Critique round 2: an empty Shopify tax list means no tax (not the default rate);
+  money refunded without a return is deducted; returned orders keep their
+  fulfilment and payment fee, which is charged on the original amount; stock cover
+  uses the days actually observed; no target means no benchmark instead of a
+  self-referential 100%; "Sales incl. VAT" replaces "Gross sales"; discount and
+  VAT warnings are summarised for live stores; `bootstrap_costs.py --update`
+  refreshes stock, prices and new SKUs on every Shopify run.
 
 ## 1.2.0 - 2026-10-31
 

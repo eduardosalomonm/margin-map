@@ -7,7 +7,7 @@ Shopify, see [Connect a Shopify store](#connect-a-shopify-store).
 **Read the margin correctly:** product margin is sales after discounts and VAT,
 minus declared product costs. It is not net profit: shipping, payment fees and
 advertising appear only when declared as variable costs, overhead is always
-excluded, and refunds are reconciled separately.
+excluded. Enter returned orders with their final quantities.
 
 For the shortest possible route, open [`TLDR.README/README.md`](TLDR.README/README.md).
 

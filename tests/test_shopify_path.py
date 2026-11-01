@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 import checks  # noqa: E402
 import extract  # noqa: E402
-from bootstrap_costs import draft_model  # noqa: E402
+from bootstrap_costs import draft_model, merge_model  # noqa: E402
 from shopify import Client, ShopifyError  # noqa: E402
 from transform import build_rows, fecha_local, write_db  # noqa: E402
 
@@ -60,10 +60,39 @@ class TestOrderAdjustments(unittest.TestCase):
         self.assertAlmostEqual(rows[0]["margen_contribucion"], 40.0, places=2)
         self.assertEqual(excluded["unidades_devueltas"], 1)
 
-    def test_a_fully_refunded_line_is_not_sold(self):
-        rows = build_rows({"pedidos": [order([line(currentQuantity=0)],
-                                             displayFinancialStatus="REFUNDED")]}, COSTS)
-        self.assertEqual(rows, [])
+    def test_a_fully_returned_order_sells_nothing_but_keeps_its_costs(self):
+        costs = dict(COSTS, costes_variables={"logistica_por_pedido": 5.0, "comision_pago_pct": 2.0})
+        rows = build_rows({"pedidos": [order([line(currentQuantity=0)], displayFinancialStatus="REFUNDED",
+                                             totalRefundedSet=money(121.0))]}, costs)
+        self.assertEqual([(r["unidades"], r["ingreso_neto"]) for r in rows], [(0, 0.0)])
+        # Parcel and payment fee were still paid: 5.00 + 2% of the 121.00 charged.
+        self.assertAlmostEqual(rows[0]["coste_logistica"], 5.0, places=2)
+        self.assertAlmostEqual(rows[0]["comision_pago"], 2.42, places=2)
+        self.assertAlmostEqual(rows[0]["resultado_variable"], -7.42, places=2)
+
+    def test_money_refunded_without_a_return_reduces_sales(self):
+        excluded = {}
+        rows = build_rows({"pedidos": [order([line()], displayFinancialStatus="PARTIALLY_REFUNDED",
+                                             totalRefundedSet=money(12.10))]}, COSTS, excluded)
+        self.assertAlmostEqual(rows[0]["ingreso_con_iva"], 108.9, places=2)
+        self.assertAlmostEqual(rows[0]["ingreso_neto"], 90.0, places=2)
+        self.assertEqual(excluded["reembolsos_sin_devolucion"], 1)
+        self.assertAlmostEqual(excluded["importe_reembolsado_sin_devolucion"], 12.1, places=2)
+
+    def test_returned_units_are_not_deducted_twice(self):
+        excluded = {}
+        rows = build_rows({"pedidos": [order([line(currentQuantity=1)], totalRefundedSet=money(60.5))]},
+                          COSTS, excluded)
+        self.assertAlmostEqual(rows[0]["ingreso_con_iva"], 60.5, places=2)
+        self.assertNotIn("reembolsos_sin_devolucion", excluded)
+
+    def test_an_empty_tax_list_means_no_tax_not_the_default_rate(self):
+        for included, expected in ((True, 121.0), (False, 121.0)):
+            with self.subTest(taxes_included=included):
+                item = line(quantity=1, originalUnitPriceSet=money(121.0), taxLines=[])
+                row = build_rows({"pedidos": [order([item], taxesIncluded=included)]}, COSTS)[0]
+                self.assertAlmostEqual(row["ingreso_neto"], expected, places=2)
+                self.assertAlmostEqual(row["ingreso_con_iva"], 121.0, places=2)
 
     def test_gift_cards_and_unpaid_orders_are_excluded_and_counted(self):
         excluded = {}
@@ -183,6 +212,59 @@ class TestCostBootstrap(unittest.TestCase):
         self.assertEqual(model["meta"]["moneda"], "USD")
         self.assertFalse(model["iva"]["precios_incluyen_iva"])
         self.assertNotIn("objetivo", model)  # a sales target is optional
+
+
+class TestLiveStoreTolerance(TestShopifyChecks):
+    def test_discounts_summarise_per_code_and_automatic_discounts_once(self):
+        lines = [line(quantity=1, discountAllocations=[{"allocatedAmountSet": money(6.05)}])
+                 for _ in range(30)]
+        codes = lambda i: ["X"] if i % 2 else (["Z"] if i % 3 == 0 else [])
+        snapshot = {"pedidos": [order([l], name="#%d" % i, discountCodes=codes(i))
+                                for i, l in enumerate(lines)]}
+        # X is declared and valid; Z is undeclared; the rest are automatic discounts.
+        costs = dict(COSTS, descuentos={"X": {"porcentaje": 10}})
+        result = checks.run_all(self.database(build_rows(snapshot, costs)), costs)
+        discount = [m for c, m in result.avisos if c == "Discount rule vs line allocation"]
+        self.assertEqual(len(discount), 2)
+
+    def test_a_vat_change_on_a_live_store_warns(self):
+        snapshot = {"pedidos": [order([line()]), order([line(taxable=False)], name="#2")]}
+        result = checks.run_all(self.database(build_rows(snapshot, COSTS)), COSTS)
+        self.assertFalse([m for c, m in result.errores if c == "VAT consistency"])
+        self.assertTrue([m for c, m in result.avisos if c == "VAT consistency"])
+
+
+class TestDashboardReading(unittest.TestCase):
+    def test_cover_uses_the_days_actually_observed(self):
+        import publish
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE lineas (fecha TEXT, sku TEXT, unidades INTEGER)")
+        conn.executemany("INSERT INTO lineas VALUES (?, 'A', 1)",
+                         [("2026-10-%02d" % day,) for day in range(1, 31)])
+        costs = {"productos": {"A": {"nombre": "A", "stock": 60}}}
+        cover = publish.inventory_metrics(conn, costs)[0]["cover_weeks"]
+        # 30 units in 30 days is 7 a week: 60 units last about 8.6 weeks, not 25.7.
+        self.assertAlmostEqual(cover, 60 / 7.0, places=1)
+
+
+class TestCostRefresh(unittest.TestCase):
+    def test_refresh_adds_skus_and_updates_stock_without_undoing_manual_costs(self):
+        existing = {"meta": {}, "productos": {
+            "A": {"nombre": "A", "coste_unitario": 9.0, "coste_fuente": "Supplier invoice", "precio_web": 30.0, "stock": 50},
+            "B": {"nombre": "B", "coste_unitario": 4.0, "coste_fuente": "Shopify cost per item", "precio_web": 12.0},
+        }}
+        drafted = {"productos": {
+            "A": {"nombre": "A", "coste_unitario": 7.0, "coste_fuente": "Shopify cost per item", "precio_web": 32.0, "stock": 20},
+            "B": {"nombre": "B", "coste_unitario": 4.5, "coste_fuente": "Shopify cost per item", "precio_web": 12.0},
+            "C": {"nombre": "C", "coste_unitario": 2.0, "coste_fuente": "Shopify cost per item", "precio_web": 8.0},
+        }}
+        model, added, refreshed = merge_model(existing, drafted, today="2026-11-01")
+        self.assertEqual(model["productos"]["A"]["coste_unitario"], 9.0)  # manual cost kept
+        self.assertEqual(model["productos"]["A"]["stock"], 20)
+        self.assertEqual(model["productos"]["A"]["precio_web"], 32.0)
+        self.assertEqual(model["productos"]["B"]["coste_unitario"], 4.5)  # Shopify cost refreshed
+        self.assertEqual((added, refreshed), (["C"], 2))
+        self.assertEqual(model["meta"]["stock_actualizado"], "2026-11-01")
 
 
 if __name__ == "__main__":

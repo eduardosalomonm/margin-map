@@ -48,6 +48,11 @@ def main():
         extract_args += ["--since", args.since]
     if args.expected_units:
         extract_args += ["--expected-units", args.expected_units]
+    print("0/4  Refreshing stock, prices and new SKUs from Shopify...", flush=True)
+    refresh = subprocess.run([sys.executable, os.path.join(BASE, "src", "bootstrap_costs.py"),
+                              "--update", "--output", costs], cwd=BASE, env=environment)
+    if refresh.returncode:
+        print("     Continuing with the cost model as it is (stock may be out of date).")
     print("1/4  Extracting orders from Shopify...", flush=True)
     run("extract.py", environment, extract_args)
     print("2/4  Calculating margins...", flush=True)

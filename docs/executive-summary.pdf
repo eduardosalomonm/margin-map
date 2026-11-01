@@ -10,14 +10,14 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 6351 >>
+<< /Length 6437 >>
 stream
 0.353 0.310 0.910 rg 0 770 595 72 re f
 BT /F2 19 Tf 1.000 1.000 1.000 rg 1 0 0 1 42 805 Tm (Margin Map | Executive summary) Tj ET
 BT /F1 9 Tf 0.910 0.906 1.000 rg 1 0 0 1 42 785 Tm (Luma Vale \(sample store\) - 2025-10-22 to 2026-10-22 - Excel import) Tj ET
 BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 42 740 Tm (Commercial performance) Tj ET
 0.969 0.969 0.988 rg 42 668 120 55 re f
-BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 52 704 Tm (Gross sales) Tj ET
+BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 52 704 Tm (Sales incl. VAT) Tj ET
 BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 52 682 Tm (EUR 83,755) Tj ET
 0.969 0.969 0.988 rg 174 668 120 55 re f
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 184 704 Tm (Product margin) Tj ET
@@ -28,7 +28,7 @@ BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 316 682 Tm (74.1%) Tj ET
 0.969 0.969 0.988 rg 438 668 120 55 re f
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 448 704 Tm (After variable costs) Tj ET
 BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 448 682 Tm (EUR 35,167) Tj ET
-BT /F2 11 Tf 0.145 0.165 0.290 rg 1 0 0 1 42 638 Tm (Gross sales benchmark) Tj ET
+BT /F2 11 Tf 0.145 0.165 0.290 rg 1 0 0 1 42 638 Tm (Sales benchmark) Tj ET
 BT /F1 9 Tf 0.467 0.502 0.620 rg 1 0 0 1 405 638 Tm (83.8% of EUR 100,000) Tj ET
 0.910 0.918 0.957 rg 42 619 510 8 re f
 0.353 0.310 0.910 rg 42 619 427.152693 8 re f
@@ -36,7 +36,7 @@ BT /F1 9 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 594 Tm (1,358 units sold | 891 order
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 578 Tm (Margin EUR 51,319 + shipping 2,174 - fulfilment 4,811 - fees 1,518 - ads 11,997 = EUR 35,167 after variable costs) Tj ET
 BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 42 552 Tm (Top product economics) Tj ET
 BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 532 Tm (PRODUCT) Tj ET
-BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 295 532 Tm (GROSS SALES) Tj ET
+BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 295 532 Tm (SALES INCL. VAT) Tj ET
 BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 415 532 Tm (PRODUCT MARGIN) Tj ET
 BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 515 532 Tm (MARGIN) Tj ET
 0.902 0.914 0.953 rg 42 504 510 1 re f
@@ -86,13 +86,14 @@ BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 330 256 Tm (EUR 817) Tj ET
 BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 450 256 Tm (EUR 3,270) Tj ET
 0.941 0.976 0.980 rg 42 104 510 123 re f
 BT /F2 11 Tf 0.098 0.478 0.510 rg 1 0 0 1 58 204 Tm (Decision note and priority actions) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 187 Tm (74.1% product margin on EUR 83,755 gross sales; EUR 16,245 remains to the period benchmark.) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 175 Tm (After shipping, fulfilment, fees and advertising, EUR 35,167 \(50.8% of net sales\) remains.) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 163 Tm (- Protect Daily Reset Set: thinnest product margin \(70.2%\); keep discounts well below its) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 151 Tm (  71.4% break-even.) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 139 Tm (- Review VIP20: 1.50 of margin per EUR 1 of discount, against 3.59 for WELCOME10.) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 187 Tm (74.1% product margin on EUR 83,755 of sales incl. VAT; EUR 16,245 remains to the period) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 175 Tm (benchmark. After shipping, fulfilment, fees and advertising, EUR 35,167 \(50.8% of net sales\)) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 163 Tm (remains.) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 151 Tm (- Protect Daily Reset Set: thinnest product margin \(70.2%\); keep discounts well below its) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 139 Tm (  71.4% break-even.) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 127 Tm (- Review VIP20: 1.50 of margin per EUR 1 of discount, against 3.59 for WELCOME10.) Tj ET
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 92 Tm (Scope: product margin, then declared shipping, fulfilment, payment fees and advertising; not net profit.) Tj ET
-BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 78 Tm (Per-order costs are allocated by order value; overhead and refunds are excluded.) Tj ET
+BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 78 Tm (Per-order costs are allocated by order value; returns follow the order data; overhead is excluded.) Tj ET
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 64 Tm (Source: Excel import, checked by integrity controls before publication. Sample-store figures are illustrative.) Tj ET
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 48 Tm (Margin Map is decision support, not an accounting or tax reporting system.) Tj ET
 endstream
@@ -110,10 +111,10 @@ xref
 0000000064 00000 n 
 0000000121 00000 n 
 0000000257 00000 n 
-0000006660 00000 n 
-0000006730 00000 n 
+0000006746 00000 n 
+0000006816 00000 n 
 trailer
 << /Size 7 /Root 1 0 R >>
 startxref
-6805
+6891
 %EOF

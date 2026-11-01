@@ -47,7 +47,7 @@ function drawChart(id, series) {
   if (min < 0) ticks.push(0);
   let markup = ticks.map(value => `<line x1="${left}" y1="${y(value)}" x2="${right}" y2="${y(value)}" stroke="${value === 0 ? '#77809e' : '#e6e9f3'}"/><text x="${left - 8}" y="${y(value) + 3}" text-anchor="end" fill="#77809e" font-size="10">${esc(new Intl.NumberFormat('en-GB', {notation:'compact',maximumFractionDigits:1}).format(value))}</text>`).join('');
   const colours = {gross: '#5a4fe8', margin: '#3e9f9a', after: '#ad7214'};
-  const names = {gross: 'Gross sales', margin: 'Product margin', after: 'After variable costs'};
+  const names = {gross: 'Sales incl. VAT', margin: 'Product margin', after: 'After variable costs'};
   for (const key of keys) {
     const path = series.map((row, i) => `${i ? 'L' : 'M'}${x(i)},${y(row[key] || 0)}`).join(' ');
     markup += `<path d="${path}" fill="none" stroke="${colours[key]}" stroke-width="2.5"${key === 'after' ? ' stroke-dasharray="6 4"' : ''}/>`;

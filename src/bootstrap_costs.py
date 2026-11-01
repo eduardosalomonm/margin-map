@@ -10,8 +10,13 @@ An existing cost model is never overwritten.
 
 Needs read_products and read_inventory.
 
+With --update, an existing model is refreshed instead: new SKUs are added, stock
+and prices are brought up to date, and costs are refreshed only where they still
+come from Shopify. Costs, bundles and settings edited by hand are kept.
+
 Usage:  python3 src/bootstrap_costs.py
         python3 src/bootstrap_costs.py --output costs.private.json
+        python3 src/bootstrap_costs.py --update
 """
 
 import argparse
@@ -80,6 +85,27 @@ def draft_model(shop, variants, today=None):
     return model, missing_cost, missing_sku
 
 
+def merge_model(existing, drafted, today=None):
+    """Refresh an existing model from a new draft without undoing manual work."""
+    today = today or datetime.date.today().isoformat()
+    products = existing.setdefault("productos", {})
+    added, refreshed = [], 0
+    for sku, fresh in drafted["productos"].items():
+        current = products.get(sku)
+        if current is None:
+            products[sku] = fresh
+            added.append(sku)
+            continue
+        if "stock" in fresh:
+            current["stock"] = fresh["stock"]
+        current["precio_web"] = fresh["precio_web"]
+        if current.get("coste_fuente") == "Shopify cost per item":
+            current["coste_unitario"] = fresh["coste_unitario"]
+        refreshed += 1
+    existing.setdefault("meta", {})["stock_actualizado"] = today
+    return existing, added, refreshed
+
+
 def fetch_catalogue(client):
     shop, variants, cursor = {}, [], None
     while True:
@@ -95,8 +121,12 @@ def fetch_catalogue(client):
 def main():
     parser = argparse.ArgumentParser(description="Draft a cost model from the Shopify catalogue.")
     parser.add_argument("--output", default="costs.private.json")
+    parser.add_argument("--update", action="store_true",
+                        help="refresh stock, prices and Shopify costs in an existing model")
     args = parser.parse_args()
     output = args.output if os.path.isabs(args.output) else os.path.join(BASE, args.output)
+    if args.update:
+        return update(output)
     if os.path.exists(output):
         print("%s already exists; it is never overwritten. Choose another --output." % output)
         return 1
@@ -107,6 +137,7 @@ def main():
         return 1
 
     model, missing_cost, missing_sku = draft_model(shop, variants)
+    model["meta"]["stock_actualizado"] = datetime.date.today().isoformat()
     if not model["productos"]:
         print("No variant has a cost per item in Shopify yet. Add costs in Shopify "
               "(Products > variant > Cost per item) or write costs.private.json by hand.")
@@ -121,6 +152,31 @@ def main():
     if missing_sku:
         print("%d variants have no SKU and were skipped; give them a SKU in Shopify." % len(missing_sku))
     print("Declare bundles and, optionally, variable costs before building the dashboard.")
+    return 0
+
+
+def update(output):
+    if not os.path.exists(output):
+        print("No cost model at %s to update. Run without --update first." % output)
+        return 1
+    try:
+        shop, variants = fetch_catalogue(Client.from_env())
+    except ShopifyError as exc:
+        print("Catalogue refresh skipped: %s" % exc)
+        return 1
+    with open(output, encoding="utf-8") as handle:
+        existing = json.load(handle)
+    drafted, missing_cost, _missing_sku = draft_model(shop, variants)
+    model, added, refreshed = merge_model(existing, drafted)
+    temporary = output + ".tmp"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        json.dump(model, handle, ensure_ascii=False, indent=2)
+    os.replace(temporary, output)  # never leave a half-written cost model
+    print("Catalogue refreshed: %d SKUs updated, %d added%s."
+          % (refreshed, len(added), (" (%s)" % ", ".join(added[:5])) if added else ""))
+    unknown = [sku for sku in missing_cost if sku not in model["productos"]]
+    if unknown:
+        print("Still without a cost: %s" % ", ".join(unknown[:10]))
     return 0
 
 

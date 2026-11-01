@@ -57,6 +57,7 @@ query($cursor: String, $query: String, $first: Int!, $lines: Int!) {
         totalShippingPriceSet { shopMoney { amount } }
         currentShippingPriceSet { shopMoney { amount } }
         currentTotalTaxSet { shopMoney { amount } }
+        totalRefundedSet { shopMoney { amount } }
         # Sin customer: requiere read_customers (dato personal protegido) y el panel
         # no lo necesita.
         lineItems(first: $lines) {
@@ -136,7 +137,8 @@ def fetch_orders(client, since=None, shop=None):
 
 def summarise(orders):
     """Reconciliacion contra la realidad. Si no cuadra, el problema esta aqui."""
-    live = [o for o in orders if not o.get("test") and not o.get("cancelledAt")]
+    live = [o for o in orders if not o.get("test") and not o.get("cancelledAt")
+            and o.get("displayFinancialStatus") not in ("VOIDED", "EXPIRED")]
     units = 0
     skus = {}
     for order in live:

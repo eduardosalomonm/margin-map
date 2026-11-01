@@ -126,6 +126,14 @@ def precio_catalogo(costs, sku, fecha):
     return vigente if vigente is not None else float(producto["precio_web"])
 
 
+EXCLUSION_LABELS = {
+    "tarjetas_regalo": "Gift-card lines excluded",
+    "pedidos_sin_pago": "Voided or expired orders excluded",
+    "unidades_devueltas": "Units returned or removed",
+    "reembolsos_sin_devolucion": "Orders with money refunded without a return",
+    "importe_reembolsado_sin_devolucion": "Amount refunded without a return",
+}
+
 # Orders whose payment never completed: not trading, whatever their line items say.
 ESTADOS_EXCLUIDOS = {"VOIDED", "EXPIRED"}
 
@@ -170,6 +178,9 @@ def build_rows(snapshot, costs, excluidas=None):
     tabla = catalogo(costs)
     rows = []
     envio_por_pedido = {}
+    # What each order originally charged. Payment providers keep their fee when an
+    # order is refunded, so fees are calculated on this, not on what remains.
+    cobrado_original = {}
     zona = snapshot.get("zona_horaria")
     for order in snapshot["pedidos"]:
         if order.get("test") or order.get("cancelledAt"):
@@ -192,6 +203,11 @@ def build_rows(snapshot, costs, excluidas=None):
         envio_neto = envio / (1 + tipo_iva / 100.0) if incluye_iva else envio
         cobrado, neto = envio_por_pedido.get(order["name"], (0.0, 0.0))
         envio_por_pedido[order["name"]] = (cobrado + envio, neto + envio_neto)
+        envio_original = money(order, "totalShippingPriceSet")
+        envio_original = envio if envio_original is None else envio_original
+        cobrado_original[order["name"]] = cobrado_original.get(order["name"], 0.0) + envio_original
+        filas_pedido = []
+        devuelto = 0.0  # value of the units returned, as charged
 
         lineas = [e["node"] for e in order["lineItems"]["edges"]]
         base_total = sum((money(i, "originalUnitPriceSet") or 0.0) * (i.get("quantity") or 0)
@@ -208,10 +224,10 @@ def build_rows(snapshot, costs, excluidas=None):
                 qty = pedida
             if pedida and qty < pedida:
                 excluidas["unidades_devueltas"] = excluidas.get("unidades_devueltas", 0) + pedida - qty
-            if pedida and qty <= 0:
-                continue  # fully returned or removed: nothing was sold
+            qty = max(qty, 0)
             # Price and discount are stated for the quantity ordered; keep the share
-            # that is still sold.
+            # that is still sold. A fully returned line stays as a zero-unit row, so
+            # the order's fulfilment and payment fee, which were still spent, remain.
             vigente = (qty / float(pedida)) if pedida else 1.0
             bruto = money(item, "originalUnitPriceSet")
             base_linea = (bruto or 0.0) * pedida
@@ -222,8 +238,11 @@ def build_rows(snapshot, costs, excluidas=None):
             if descuento_linea is None:
                 cuota = (base_linea / base_total) if base_total else 0.0
                 descuento_linea = round(descuento_pedido * cuota, 2)
+            # Every amount is first stated for the quantity ordered, then scaled to
+            # the quantity still sold. The difference is what was returned.
+            precio_completo = base_linea - descuento_linea
             descuento_linea = round(descuento_linea * vigente, 2)
-            precio_linea = round(base_linea * vigente - descuento_linea, 2)
+            precio_linea = round(precio_completo * vigente, 2)
 
             # 2. Paso a ex IVA. Las taxLines de Shopify dan el impuesto real de la
             # linea (tipos reducidos, otros paises); sin ellas se aplica el tipo
@@ -231,26 +250,33 @@ def build_rows(snapshot, costs, excluidas=None):
             # cliente paga el impuesto encima.
             gravada = bool(item.get("taxable"))
             lineas_iva = item.get("taxLines")
-            if lineas_iva:
-                iva = round(sum(money(t, "priceSet") or 0.0 for t in lineas_iva) * vigente, 2)
+            # A present list is Shopify's answer, even when empty (zero-rated or
+            # exempt). Only a snapshot without the field falls back to the declared rate.
+            if lineas_iva is not None:
+                iva_completo = sum(money(t, "priceSet") or 0.0 for t in lineas_iva)
             elif gravada and incluye_iva:
-                iva = round(precio_linea - precio_linea / (1 + tipo_iva / 100.0), 2)
+                iva_completo = precio_completo - precio_completo / (1 + tipo_iva / 100.0)
             elif gravada:
-                iva = round(precio_linea * tipo_iva / 100.0, 2)
+                iva_completo = precio_completo * tipo_iva / 100.0
             else:
-                iva = 0.0
+                iva_completo = 0.0
+            iva = round(iva_completo * vigente, 2)
             if incluye_iva:
                 ingreso_con_iva, ingreso_ex_iva = precio_linea, round(precio_linea - iva, 2)
+                pagado_completo = precio_completo
             else:
                 ingreso_con_iva, ingreso_ex_iva = round(precio_linea + iva, 2), precio_linea
+                pagado_completo = precio_completo + iva_completo
             iva_implicito = round(ingreso_con_iva - ingreso_ex_iva, 2)
+            devuelto += pagado_completo - ingreso_con_iva
+            cobrado_original[order["name"]] += pagado_completo
 
             entrada = tabla.get(sku)
             coste_unit = entrada["coste"] if entrada else None
             coste = round(coste_unit * qty, 2) if coste_unit is not None else None
             margen = round(ingreso_ex_iva - coste, 2) if coste is not None else None
 
-            rows.append({
+            filas_pedido.append({
                 "pedido": order["name"],
                 "fecha": fecha,
                 "sku": sku,
@@ -273,9 +299,42 @@ def build_rows(snapshot, costs, excluidas=None):
                 "iva_pedido_declarado": money(order, "currentTotalTaxSet"),
                 "envio_pedido": money(order, "totalShippingPriceSet"),
             })
-    aplicar_costes_variables(rows, envio_por_pedido, costs)
+        descontar_reembolso(order, filas_pedido, devuelto, envio, envio_original, excluidas)
+        rows.extend(filas_pedido)
+    aplicar_costes_variables(rows, envio_por_pedido, costs, cobrado_original)
     return rows
 
+
+def descontar_reembolso(order, filas, devuelto, envio, envio_original, excluidas):
+    """Deduct money refunded without returning items, such as a goodwill refund.
+
+    Returned units already left the line through currentQuantity, and refunded
+    shipping through the current shipping price. Whatever else Shopify refunded
+    reduces the order's sales in proportion to each line, so it is neither
+    counted as revenue nor lost silently.
+    """
+    reembolsado = money(order, "totalRefundedSet")
+    if not reembolsado or not filas:
+        return
+    resto = round(reembolsado - devuelto - max(envio_original - envio, 0.0), 2)
+    pagado = sum(fila["ingreso_con_iva"] for fila in filas)
+    if resto <= 0.01 or pagado <= 0:
+        return
+    resto = min(resto, pagado)
+    excluidas["reembolsos_sin_devolucion"] = excluidas.get("reembolsos_sin_devolucion", 0) + 1
+    excluidas["importe_reembolsado_sin_devolucion"] = round(
+        excluidas.get("importe_reembolsado_sin_devolucion", 0.0) + resto, 2)
+    for fila, parte in zip(filas, repartir(resto, [f["ingreso_con_iva"] for f in filas])):
+        if not fila["ingreso_con_iva"]:
+            continue
+        factor = (fila["ingreso_con_iva"] - parte) / fila["ingreso_con_iva"]
+        fila["ingreso_con_iva"] = round(fila["ingreso_con_iva"] - parte, 2)
+        fila["ingreso_neto"] = round(fila["ingreso_neto"] * factor, 2)
+        fila["iva_implicito"] = round(fila["ingreso_con_iva"] - fila["ingreso_neto"], 2)
+        if fila["coste_total"] is not None:
+            fila["margen_contribucion"] = round(fila["ingreso_neto"] - fila["coste_total"], 2)
+            fila["margen_pct"] = (round(100.0 * fila["margen_contribucion"] / fila["ingreso_neto"], 1)
+                                  if fila["ingreso_neto"] else None)
 
 def repartir(total, pesos):
     """Split an amount into cents by weight, so the parts add up to the total exactly.
@@ -295,7 +354,7 @@ def repartir(total, pesos):
     return [parte / 100.0 for parte in partes]
 
 
-def aplicar_costes_variables(rows, envio_por_pedido, costs):
+def aplicar_costes_variables(rows, envio_por_pedido, costs, cobrado_original=None):
     """Add the optional per-order and monthly costs to each line.
 
     Order-level amounts (shipping charged, fulfilment, payment fees) follow each
@@ -317,9 +376,14 @@ def aplicar_costes_variables(rows, envio_por_pedido, costs):
         por_pedido.setdefault(row["pedido"], []).append(row)
     for pedido, lineas in por_pedido.items():
         pesos = [max(linea["ingreso_con_iva"], 0.0) for linea in lineas]
+        if not any(pesos):
+            pesos = [1.0] * len(lineas)  # a fully returned order still carries its costs
         envio_cobrado, envio_neto = envio_por_pedido.get(pedido, (0.0, 0.0))
-        # Payment providers charge on everything the customer paid, VAT and shipping included.
-        cobrado = sum(linea["ingreso_con_iva"] for linea in lineas) + envio_cobrado
+        # Payment providers charge on everything the customer paid, VAT and shipping
+        # included, and keep the fee when the order is later refunded.
+        cobrado = (cobrado_original or {}).get(pedido)
+        if cobrado is None:
+            cobrado = sum(linea["ingreso_con_iva"] for linea in lineas) + envio_cobrado
         comision = cobrado * modelo["comision_pago_pct"] / 100.0 + modelo["comision_pago_fija"]
         for campo, importe in (("ingreso_envio", envio_neto),
                                ("coste_logistica", modelo["logistica_por_pedido"]),
@@ -378,7 +442,7 @@ def write_db(rows, excluidas=None):
         [tuple(row[c] for c in columns) for row in rows],
     )
     # What was left out, and why, stays queryable so checks.py can report it.
-    conn.execute("CREATE TABLE exclusiones (motivo TEXT, cantidad INTEGER)")
+    conn.execute("CREATE TABLE exclusiones (motivo TEXT, cantidad REAL)")
     conn.executemany("INSERT INTO exclusiones VALUES (?, ?)", sorted((excluidas or {}).items()))
     conn.commit()
     conn.close()
@@ -453,7 +517,7 @@ def main():
         raise SystemExit("INPUT ERROR: %s" % exc) from None
     write_db(rows, excluidas)
     for motivo, cantidad in sorted(excluidas.items()):
-        print("Excluded %s: %d" % (motivo.replace("_", " "), cantidad))
+        print("%s: %s" % (EXCLUSION_LABELS.get(motivo, motivo), cantidad))
     filas = write_csv(rows, costs)
 
     print("Lines processed: %d" % len(rows))

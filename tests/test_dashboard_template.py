@@ -23,7 +23,7 @@ class TestDashboardTemplate(unittest.TestCase):
         footer = self.template.split("<footer>", 1)[1].split("</footer>", 1)[0]
         self.assertIn("{{SIDEBAR_NOTE}}", footer)
         self.assertIn("not net profit", footer)
-        self.assertIn("refunds require separate reconciliation", footer)
+        self.assertIn("Returns and refunds are deducted when the order data records them", footer)
         self.assertIn("Source: {{SOURCE_LABEL}}", footer)
         self.assertIn("footer{font-size:13px;line-height:1.5}", self.template)
 

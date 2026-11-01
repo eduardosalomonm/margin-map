@@ -73,7 +73,9 @@ forecast. It runs in the browser and leaves the underlying data unchanged.
 
 ### What the Shopify path accounts for
 
-- **Returns, refunds and order edits:** each line counts by the quantity still sold.
+- **Returns, refunds and order edits:** each line counts by the quantity still sold,
+  money refunded without a return is deducted from the order's sales, and a
+  returned order keeps the fulfilment and payment fee it already cost.
 - **Real VAT per line** from Shopify's tax lines, including reduced rates, and
   tax-exclusive stores where VAT is added on top of the price.
 - **Shipping after shipping discounts**, and dates in the shop's own timezone.
@@ -84,8 +86,10 @@ forecast. It runs in the browser and leaves the underlying data unchanged.
 - **Resilient extraction:** retries on rate limits, outages and timeouts, and
   smaller pages automatically when a query is too large for Shopify.
 
-Refunds that are not tied to a line (for example a goodwill refund) and exact
-payment-provider fees are not yet read from Shopify.
+Exact payment-provider fees (Shopify Payments balance transactions) are not yet
+read; declare the provider's rate as a variable cost. "Sales incl. VAT" is what
+customers paid after discounts, which differs from Shopify Analytics' *Gross
+sales* (before discounts, ex tax).
 
 ## Other platforms: the Excel template
 
@@ -121,7 +125,8 @@ Per-order amounts are allocated to lines by what the customer paid; monthly
 advertising by each line's share of that month's net revenue.
 
 Neither figure is net profit: salaries, rent, software and other overhead are
-excluded, and refunds need separate reconciliation. The **break-even discount**
+excluded. Returns and refunds are deducted when the order data records them;
+the Excel template records sales as entered. The **break-even discount**
 covers product cost, VAT and the percentage payment fee only. Margin Map is
 decision support, not accounting or tax software.
 

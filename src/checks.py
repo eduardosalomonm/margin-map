@@ -171,16 +171,19 @@ def check_descuentos(conn, costs, res):
         # every discounted line here would block a dashboard over missing paperwork
         # instead of over a real data defect. Say so once, and move on.
         res.aviso("Discount rule vs line allocation",
-                  "%d discount code(s) used in orders (%s) are not described in the cost "
-                  "model, so their allocations were not validated. Declare them as "
-                  "promotion rules to switch this control on."
-                  % (len(used), ", ".join(sorted(used))))
+                  "%s used in orders (%s) %s not described in the cost model, so allocations "
+                  "were not validated. Declare them as promotion rules to switch this control on."
+                  % ("1 discount code" if len(used) == 1 else "%d discount codes" % len(used),
+                     ", ".join(sorted(used)), "is" if len(used) == 1 else "are"))
         return
+    # A live store produces thousands of lines. Undeclared codes and automatic
+    # discounts are summarised once each instead of one warning per line.
+    automaticas, sin_regla = [0, 0.0], {}
     for order, date, sku, price, units, discount, codes in rows:
         code = (codes or "").split(",")[0].strip()
         if not code:
-            res.aviso("Discount rule vs line allocation",
-                      "%s %s: %.2f discount has no discount code to check." % (order, sku, discount))
+            automaticas[0] += 1
+            automaticas[1] += float(discount or 0)
             continue
         rule = rules.get(code)
         if not rule:
@@ -188,9 +191,7 @@ def check_descuentos(conn, costs, res):
             # paperwork, not corrupt data, so it must not block a dashboard. What
             # this control exists to catch is a *declared* rule that no longer
             # matches what was actually allocated, and that is still an error below.
-            res.aviso("Discount rule vs line allocation",
-                      "%s %s: %s is used in orders but is not declared as a promotion "
-                      "rule, so its allocation was not validated." % (order, sku, code))
+            sin_regla[code] = sin_regla.get(code, 0) + 1
             continue
         if not rule.get("activo", True):
             res.error("Discount rule vs line allocation",
@@ -224,6 +225,15 @@ def check_descuentos(conn, costs, res):
             res.error("Discount rule vs line allocation",
                       "%s %s: %s allocates %.2f; the declared %s rule expects %.2f."
                       % (order, sku, code, discount, described, expected))
+    if automaticas[0]:
+        res.aviso("Discount rule vs line allocation",
+                  "%d discounted lines (%.2f in total) carry no discount code, typically automatic "
+                  "discounts or manual price reductions; they are counted but not validated."
+                  % (automaticas[0], automaticas[1]))
+    for code, lineas in sorted(sin_regla.items()):
+        res.aviso("Discount rule vs line allocation",
+                  "%s is used on %d lines but is not declared as a promotion rule, so its "
+                  "allocation was not validated." % (code, lineas))
 
 
 def check_iva(conn, costs, res):
@@ -249,9 +259,16 @@ def check_iva(conn, costs, res):
 
     for sku, ts in estados.items():
         if len(ts) > 1:
-            res.error("VAT consistency",
-                      "%s appears taxable on some orders and non-taxable on others. This is a data error."
-                      % sku)
+            if data_source(costs)[0] == "Shopify Admin API":
+                # A live store can change a product's tax setting, or sell it to an
+                # exempt customer. Each line already uses the tax Shopify charged.
+                res.aviso("VAT consistency",
+                          "%s was charged VAT on some orders and not on others; each order uses "
+                          "the tax Shopify actually charged." % sku)
+            else:
+                res.error("VAT consistency",
+                          "%s appears taxable on some orders and non-taxable on others. This is a data error."
+                          % sku)
 
 
 def check_costes_variables(conn, costs, res):
@@ -280,7 +297,7 @@ def check_costes_variables(conn, costs, res):
 EXCLUSION_NOTES = {
     "tarjetas_regalo": "%d gift-card lines were excluded: a gift card is a liability until redeemed, not product revenue.",
     "pedidos_sin_pago": "%d voided or expired orders were excluded because no payment was completed.",
-    "unidades_devueltas": "%d units were returned, refunded or removed after the order; margins use the quantities still sold.",
+    "unidades_devueltas": "%d units were returned, refunded or removed after the order; margins use the quantities still sold, and the orders keep their fulfilment and payment fees.",
 }
 
 
@@ -290,9 +307,15 @@ def check_exclusiones(conn, costs, res):
         filas = conn.execute("SELECT motivo, cantidad FROM exclusiones").fetchall()
     except sqlite3.OperationalError:
         return  # database built before exclusions were recorded
+    valores = dict(filas)
     for motivo, cantidad in filas:
         if cantidad and motivo in EXCLUSION_NOTES:
             res.aviso("Excluded and adjusted orders", EXCLUSION_NOTES[motivo] % cantidad)
+    if valores.get("reembolsos_sin_devolucion"):
+        res.aviso("Excluded and adjusted orders",
+                  "%d orders had %.2f refunded without returning items (for example a goodwill "
+                  "refund); it was deducted from their sales."
+                  % (valores["reembolsos_sin_devolucion"], valores.get("importe_reembolsado_sin_devolucion") or 0))
 
 
 # The single registry of controls. publish.py runs the same set and renders the
