@@ -8,7 +8,7 @@ import os
 import sqlite3
 import sys
 
-from config import ConfigError, costs_path, load_costs, variable_costs
+from config import ConfigError, costs_path, data_source, load_costs, variable_costs
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.abspath(os.environ.get("PIPELINE_DATA_DIR", os.path.join(BASE, "data")))
@@ -50,6 +50,21 @@ def check_precio_catalogo(conn, costs, res):
         "SELECT pedido, fecha, sku, precio_bruto, precio_catalogo, unidades FROM lineas "
         "WHERE precio_catalogo IS NOT NULL AND precio_bruto IS NOT NULL "
         "AND ABS(precio_bruto - precio_catalogo) > ?", (TOLERANCIA,)).fetchall()
+    if data_source(costs)[0] == "Shopify Admin API":
+        # A live store changes prices, sells through Markets and B2B price lists,
+        # and edits orders. Those are facts about the store, not corrupt data: the
+        # margin uses what was actually charged. Report them per SKU instead of
+        # blocking every real store over undeclared price history.
+        por_sku = {}
+        for pedido, fecha, sku, bruto, catalogo, unidades in filas:
+            entry = por_sku.setdefault(sku, [0, bruto, catalogo])
+            entry[0] += 1
+        for sku, (lineas, bruto, catalogo) in sorted(por_sku.items()):
+            res.aviso("Catalogue price vs charged price",
+                      "%s: %d order lines were charged a price other than the declared catalogue "
+                      "price (for example %.2f vs %.2f). Margins use the price charged; declare "
+                      "the price history to validate it." % (sku, lineas, bruto, catalogo))
+        return
     for pedido, fecha, sku, bruto, catalogo, unidades in filas:
         res.error("Catalogue price vs charged price",
                   "%s (%s) %s: the store charged %.2f but the catalogue says %.2f (%d units)"
@@ -262,13 +277,31 @@ def check_costes_variables(conn, costs, res):
                   % sin_coste)
 
 
+EXCLUSION_NOTES = {
+    "tarjetas_regalo": "%d gift-card lines were excluded: a gift card is a liability until redeemed, not product revenue.",
+    "pedidos_sin_pago": "%d voided or expired orders were excluded because no payment was completed.",
+    "unidades_devueltas": "%d units were returned, refunded or removed after the order; margins use the quantities still sold.",
+}
+
+
+def check_exclusiones(conn, costs, res):
+    """Say what was left out of the figures, so a total can be reconciled with Shopify."""
+    try:
+        filas = conn.execute("SELECT motivo, cantidad FROM exclusiones").fetchall()
+    except sqlite3.OperationalError:
+        return  # database built before exclusions were recorded
+    for motivo, cantidad in filas:
+        if cantidad and motivo in EXCLUSION_NOTES:
+            res.aviso("Excluded and adjusted orders", EXCLUSION_NOTES[motivo] % cantidad)
+
+
 # The single registry of controls. publish.py runs the same set and renders the
 # same names, so a new control is added here once instead of in three places.
 ALL_CHECKS = (check_sku_desconocido, check_precio_catalogo, check_bundles,
-              check_descuentos, check_iva, check_costes_variables)
+              check_descuentos, check_iva, check_costes_variables, check_exclusiones)
 
 CONTROL_NAMES = ("Unknown SKU", "Catalogue price vs charged price", "Bundle pricing rules",
-                 "Discount rule vs line allocation", "VAT consistency", "Variable cost allocation")
+                 "Discount rule vs line allocation", "VAT consistency", "Variable cost allocation", "Excluded and adjusted orders")
 
 
 def run_all(conn, costs, res=None):

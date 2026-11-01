@@ -65,6 +65,12 @@ class FiniteInputs(unittest.TestCase):
 class ProviderErrorPrivacy(unittest.TestCase):
     marker = "fictional-sensitive-value"
 
+    def setUp(self):
+        # Transient failures are retried with back-off; the tests need no real waiting.
+        sleeper = patch("shopify.time.sleep")
+        sleeper.start()
+        self.addCleanup(sleeper.stop)
+
     def assert_private(self, action):
         with self.assertRaises(ShopifyError) as result:
             action()

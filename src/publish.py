@@ -32,8 +32,8 @@ window.drawSankey=function(data){
   if(!list){svg.innerHTML='<text x="380" y="135" text-anchor="middle" fill="#77809e" font-size="13">No sales in this selection</text>';return;}
   const share=value=>(100*value/list).toFixed(1)+"% of list price";
   if(data.margin<0){
-    svg.setAttribute('aria-label','Negative contribution: product cost exceeds net revenue. Signed breakdown shown instead of a positive-flow Sankey.');
-    const lines=[['List price',list],['Discounts',-discount],['VAT',-vat],['Net revenue',net],['Product cost',-cost],['Contribution',data.margin]];
+    svg.setAttribute('aria-label','Negative product margin: product cost exceeds net revenue. Signed breakdown shown instead of a positive-flow Sankey.');
+    const lines=[['List price',list],['Discounts',-discount],['VAT',-vat],['Net revenue',net],['Product cost',-cost],['Product margin',data.margin]];
     svg.innerHTML='<text x="20" y="24" fill="#b54b55" font-size="14" font-weight="700">Product cost exceeds net revenue</text>'+lines.map(([name,value],i)=>'<text x="20" y="'+(59+i*36)+'" fill="#252a4a" font-size="12">'+name+'</text><text x="720" y="'+(59+i*36)+'" text-anchor="end" fill="'+(value<0?'#b54b55':'#252a4a')+'" font-size="12">'+esc(euro(value))+' · '+share(value)+'</text>').join('');return;
   }
   const h=value=>120*value/list,listH=h(list),afterH=h(afterDiscount),discountH=h(discount),netH=h(net),vatH=h(vat),costH=h(cost),contributionH=h(contribution);
@@ -41,8 +41,8 @@ window.drawSankey=function(data){
   const flow=(x1,y1,height1,x2,y2,height2,color)=>{const mid=(x1+x2)/2;return '<path d="M'+x1+','+y1+' C'+mid+','+y1+' '+mid+','+y2+' '+x2+','+y2+' L'+x2+','+(y2+height2)+' C'+mid+','+(y2+height2)+' '+mid+','+(y1+height1)+' '+x1+','+(y1+height1)+' Z" fill="'+color+'" opacity=".82"/>';};
   const node=(x,y,height,color)=>'<rect x="'+x+'" y="'+y+'" width="13" height="'+height+'" rx="4" fill="'+color+'"/>';
   const label=(x,y,name,value,align)=>'<text x="'+x+'" y="'+y+'" text-anchor="'+(align||'start')+'" fill="#252a4a" font-size="11" font-weight="700">'+name+'</text><text x="'+x+'" y="'+(y+14)+'" text-anchor="'+(align||'start')+'" fill="#77809e" font-size="10">'+euro(value)+' · '+share(value)+'</text>';
-  svg.setAttribute("aria-label","Revenue flow: list price, discounts, VAT, cost and contribution margin.");
-  svg.innerHTML=flow(33,sourceY,afterH,195,mainY,afterH,"#5a4fe8")+flow(33,sourceY+afterH,discountH,195,lossY,discountH,"#dd655f")+flow(208,mainY,netH,375,mainY,netH,"#5a4fe8")+flow(208,mainY+netH,vatH,375,lossY,vatH,"#aeb7ca")+flow(388,mainY,contributionH,555,mainY,contributionH,"#3e9f9a")+flow(388,mainY+contributionH,costH,555,lossY,costH,"#dd655f")+node(20,sourceY,listH,"#5a4fe8")+node(195,mainY,afterH,"#5a4fe8")+node(195,lossY,discountH,"#dd655f")+node(375,mainY,netH,"#5a4fe8")+node(375,lossY,vatH,"#aeb7ca")+node(555,mainY,contributionH,"#3e9f9a")+node(555,lossY,costH,"#dd655f")+label(20,24,"List price",list)+label(195,24,"After discounts",afterDiscount)+label(375,24,"Net revenue ex VAT",net)+label(555,24,"Contribution",contribution)+label(195,270,"Discounts",discount)+label(375,270,"VAT",vat)+label(555,270,"Product cost",cost);
+  svg.setAttribute("aria-label","Revenue flow: list price, discounts, VAT, cost and product margin.");
+  svg.innerHTML=flow(33,sourceY,afterH,195,mainY,afterH,"#5a4fe8")+flow(33,sourceY+afterH,discountH,195,lossY,discountH,"#dd655f")+flow(208,mainY,netH,375,mainY,netH,"#5a4fe8")+flow(208,mainY+netH,vatH,375,lossY,vatH,"#aeb7ca")+flow(388,mainY,contributionH,555,mainY,contributionH,"#3e9f9a")+flow(388,mainY+contributionH,costH,555,lossY,costH,"#dd655f")+node(20,sourceY,listH,"#5a4fe8")+node(195,mainY,afterH,"#5a4fe8")+node(195,lossY,discountH,"#dd655f")+node(375,mainY,netH,"#5a4fe8")+node(375,lossY,vatH,"#aeb7ca")+node(555,mainY,contributionH,"#3e9f9a")+node(555,lossY,costH,"#dd655f")+label(20,24,"List price",list)+label(195,24,"After discounts",afterDiscount)+label(375,24,"Net revenue ex VAT",net)+label(555,24,"Product margin",contribution)+label(195,270,"Discounts",discount)+label(375,270,"VAT",vat)+label(555,270,"Product cost",cost);
 };
 document.getElementById("period").dispatchEvent(new Event("change"));
 </script>'''
@@ -154,11 +154,15 @@ def breakeven_discount(costs, sku, model=None):
         return None
     vat = float((costs.get("iva") or {}).get("tipo_pct", 21.0))
     fee = (model or {}).get("comision_pago_pct", 0.0) / 100.0
-    kept_per_euro = 1 / (1 + vat / 100.0) - fee
+    if (costs.get("iva") or {}).get("precios_incluyen_iva", True):
+        kept_per_euro = 1 / (1 + vat / 100.0) - fee
+    else:
+        # Prices are net; the customer pays VAT on top, and the fee is charged on both.
+        kept_per_euro = 1 - fee * (1 + vat / 100.0)
     if kept_per_euro <= 0:
         return None
-    rate = 100 * (1 - entry["coste"] / (price * kept_per_euro))
-    return round(rate, 1) if rate > 0 else None
+    # Zero or negative means the item is already sold at or below cost.
+    return round(100 * (1 - entry["coste"] / (price * kept_per_euro)), 1)
 
 
 def trading_metrics(conn):
@@ -218,8 +222,10 @@ def inventory_metrics(conn, costs, window_days=90):
             "batch": int(batch), "sold": int(sold.get(sku, 0) or 0),
             "sell_through": 100 * (batch - stock) / batch if batch else None,
             "weekly": weekly, "cover_weeks": cover,
+            # More than half a year of cover is cash tied up in stock, not health.
             "status": "critical" if cover is not None and cover < 8
-                      else ("watch" if cover is not None and cover < 16 else "healthy"),
+                      else ("watch" if cover is not None and cover < 16
+                            else ("overstock" if cover is not None and cover > 26 else "healthy")),
         })
     return sorted(rows, key=lambda item: (item["cover_weeks"] is None, item["cover_weeks"]))
 
@@ -367,7 +373,7 @@ def bridge_block(trading):
              ("Discounts", -trading["discount"], "loss"),
              ("VAT", -trading["vat"], "tax"),
              ("Product cost", -trading["cost"], "loss"),
-             ("Contribution", trading["margin"], "result")]
+             ("Product margin", trading["margin"], "result")]
     scale = max([abs(value) for _, value, _ in steps] or [1])
     output = []
     for label, value, kind in steps:
@@ -398,6 +404,10 @@ def inventory_block(rows):
     return "\n".join(output)
 
 
+def plural(count, noun):
+    return "%d %s%s" % (count, noun, "" if count == 1 else "s")
+
+
 def controls_block(result):
     counts = {}
     for control, _ in result.errores:
@@ -408,9 +418,9 @@ def controls_block(result):
     for name in checks.CONTROL_NAMES:
         errors, warnings = counts.get(name, (0, 0))
         if errors:
-            state = "<b class='status bad'>%d errors</b>" % errors
+            state = "<b class='status bad'>%s</b>" % plural(errors, "error")
         elif warnings:
-            state = "<b class='status warning'>%d warnings</b>" % warnings
+            state = "<b class='status warning'>%s</b>" % plural(warnings, "warning")
         else:
             state = "<b class='status good'>Pass</b>"
         messages = [message for control, message in result.errores + result.avisos if control == name]
@@ -424,9 +434,9 @@ def alerts_block(result):
     if not result.errores:
         if result.avisos:
             return ("<div class='integrity issue'><div><b>Review data warnings</b>"
-                    "<p>%d advisory warnings. Read their explanations in Data controls before using the figures.</p>"
-                    "</div><span>Review needed</span></div>" % len(result.avisos))
-        note = "%d advisory warnings" % len(result.avisos) if result.avisos else "All checks pass"
+                    "<p>%s. Read the explanation in Data controls before using the figures.</p>"
+                    "</div><span>Review needed</span></div>" % plural(len(result.avisos), "advisory warning"))
+        note = plural(len(result.avisos), "advisory warning") if result.avisos else "All checks pass"
         return "<div class='integrity okay'><div><b>Data integrity</b><p>%s</p></div><span>Ready to use</span></div>" % note
     items = "".join("<li>%s</li>" % html.escape(message) for _, message in result.errores)
     return "<div class='integrity issue'><div><b>Dashboard publication blocked</b><p>Resolve these data issues before using the figures.</p><ul>%s</ul></div><span>Action needed</span></div>" % items
@@ -513,6 +523,9 @@ def main():
         "{{PACE_VERDICT}}": html.escape(pace_verdict(projection)),
         "{{BRIDGE}}": bridge_block(trading),
         "{{INVENTORY_ROWS}}": inventory_block(inventory),
+        "{{INVENTORY_JSON}}": script_json([{"sku": row["sku"], "name": row["name"],
+                                            "cover": round(row["cover_weeks"], 1) if row["cover_weeks"] is not None else None,
+                                            "status": row["status"]} for row in inventory]),
         "{{INVENTORY_NOTE}}": html.escape(inventory_note(inventory)),
         "{{DOMAIN}}": html.escape(costs.get("meta", {}).get("dominio", "example.com")),
         # The label comes from the input rather than the computer clock. That is
@@ -549,7 +562,7 @@ def main():
         handle.write(page)
     conn.close()
     print("Dashboard generated: %s" % os.path.relpath(OUTPUT, BASE))
-    print("  %s gross sales · %s contribution margin · %s orders" %
+    print("  %s gross sales · %s product margin · %s orders" %
           (currency(gross_sales), currency(contribution_margin), "{:,.0f}".format(orders)))
     return 0
 

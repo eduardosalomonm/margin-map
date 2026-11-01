@@ -33,7 +33,7 @@ class TestDashboardTemplate(unittest.TestCase):
 
     def test_sankey_has_a_dedicated_accessible_target(self):
         self.assertIn('id="sankey"', self.template)
-        self.assertIn("Revenue flow from list price to contribution margin", self.template)
+        self.assertIn("Revenue flow from list price to product margin", self.template)
 
     def test_navigation_remains_available_on_small_screens(self):
         self.assertIn("@media(max-width:1020px)", self.template)

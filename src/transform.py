@@ -126,7 +126,29 @@ def precio_catalogo(costs, sku, fecha):
     return vigente if vigente is not None else float(producto["precio_web"])
 
 
-def build_rows(snapshot, costs):
+# Orders whose payment never completed: not trading, whatever their line items say.
+ESTADOS_EXCLUIDOS = {"VOIDED", "EXPIRED"}
+
+
+def fecha_local(created_at, zona=None):
+    """The order's calendar date in the shop's timezone.
+
+    Shopify returns UTC. An order at 23:30 UTC on 31 January is a February order
+    in Madrid, and month-level figures (advertising, month to date) follow the
+    shop's calendar. Without a timezone, or on Python 3.8, the UTC date is kept.
+    """
+    if not zona or not created_at.endswith("Z"):
+        return created_at[:10]
+    try:
+        from zoneinfo import ZoneInfo
+        instante = datetime.datetime.strptime(created_at[:19], "%Y-%m-%dT%H:%M:%S")
+        instante = instante.replace(tzinfo=datetime.timezone.utc)
+        return instante.astimezone(ZoneInfo(zona)).date().isoformat()
+    except Exception:  # unknown zone or no zoneinfo: fall back to the stated UTC date
+        return created_at[:10]
+
+
+def build_rows(snapshot, costs, excluidas=None):
     """Una fila por linea de pedido, con dos correcciones que no son opcionales:
 
     1. El descuento final se toma de discountAllocations por linea. Es la asignacion
@@ -135,24 +157,38 @@ def build_rows(snapshot, costs):
        sustituto de una extraccion actual.
     2. Los precios de la tienda INCLUYEN IVA (taxesIncluded). Comparar un precio con
        IVA contra un coste sin IVA infla el margen. El margen se calcula ex IVA.
+
+    Una linea cuenta por su cantidad vigente (currentQuantity): devoluciones,
+    reembolsos y ediciones de pedido la reducen, y con ella ingreso y coste. Las
+    tarjetas regalo no son venta de producto y se excluyen; `excluidas`, si se pasa,
+    recibe el recuento de lo excluido para que se informe en lugar de perderse.
     """
+    excluidas = excluidas if excluidas is not None else {}
     validate_finite_values(snapshot)
     validate_finite_values(costs)
     tipo_iva = float(costs.get("iva", {}).get("tipo_pct", 21.0))
     tabla = catalogo(costs)
     rows = []
     envio_por_pedido = {}
+    zona = snapshot.get("zona_horaria")
     for order in snapshot["pedidos"]:
         if order.get("test") or order.get("cancelledAt"):
             continue
-        fecha = order["createdAt"][:10]
+        if order.get("displayFinancialStatus") in ESTADOS_EXCLUIDOS:
+            excluidas["pedidos_sin_pago"] = excluidas.get("pedidos_sin_pago", 0) + 1
+            continue
+        fecha = fecha_local(order["createdAt"], zona)
         codigos = ",".join(order.get("discountCodes") or [])
         incluye_iva = bool(order.get("taxesIncluded"))
         descuento_pedido = money(order, "currentTotalDiscountsSet") or 0.0
 
         # Shipping is charged once per order object. The Excel workflow writes one
         # object per line, so it records the charge on the first line of each order.
-        envio = money(order, "totalShippingPriceSet") or 0.0
+        # currentShippingPriceSet is after shipping discounts and refunds; older
+        # snapshots and the Excel path only carry the total.
+        envio = money(order, "currentShippingPriceSet")
+        if envio is None:
+            envio = money(order, "totalShippingPriceSet") or 0.0
         envio_neto = envio / (1 + tipo_iva / 100.0) if incluye_iva else envio
         cobrado, neto = envio_por_pedido.get(order["name"], (0.0, 0.0))
         envio_por_pedido[order["name"]] = (cobrado + envio, neto + envio_neto)
@@ -162,10 +198,23 @@ def build_rows(snapshot, costs):
                          for i in lineas)
 
         for item in lineas:
+            if item.get("isGiftCard"):
+                excluidas["tarjetas_regalo"] = excluidas.get("tarjetas_regalo", 0) + 1
+                continue
             sku = item.get("sku") or ""
-            qty = item.get("quantity") or 0
+            pedida = item.get("quantity") or 0
+            qty = item.get("currentQuantity", pedida)
+            if qty is None:
+                qty = pedida
+            if pedida and qty < pedida:
+                excluidas["unidades_devueltas"] = excluidas.get("unidades_devueltas", 0) + pedida - qty
+            if pedida and qty <= 0:
+                continue  # fully returned or removed: nothing was sold
+            # Price and discount are stated for the quantity ordered; keep the share
+            # that is still sold.
+            vigente = (qty / float(pedida)) if pedida else 1.0
             bruto = money(item, "originalUnitPriceSet")
-            base_linea = (bruto or 0.0) * qty
+            base_linea = (bruto or 0.0) * pedida
 
             # 1. Shopify supplies a final allocation per line. Fall back only for
             # legacy raw snapshots that predate that field.
@@ -173,14 +222,27 @@ def build_rows(snapshot, costs):
             if descuento_linea is None:
                 cuota = (base_linea / base_total) if base_total else 0.0
                 descuento_linea = round(descuento_pedido * cuota, 2)
-            ingreso_con_iva = round(base_linea - descuento_linea, 2)
+            descuento_linea = round(descuento_linea * vigente, 2)
+            precio_linea = round(base_linea * vigente - descuento_linea, 2)
 
-            # 2. Paso a ex IVA. Solo las lineas gravadas llevan IVA incluido.
+            # 2. Paso a ex IVA. Las taxLines de Shopify dan el impuesto real de la
+            # linea (tipos reducidos, otros paises); sin ellas se aplica el tipo
+            # declarado. En tiendas sin IVA incluido, el precio ya es neto y el
+            # cliente paga el impuesto encima.
             gravada = bool(item.get("taxable"))
-            if incluye_iva and gravada:
-                ingreso_ex_iva = round(ingreso_con_iva / (1 + tipo_iva / 100.0), 2)
+            lineas_iva = item.get("taxLines")
+            if lineas_iva:
+                iva = round(sum(money(t, "priceSet") or 0.0 for t in lineas_iva) * vigente, 2)
+            elif gravada and incluye_iva:
+                iva = round(precio_linea - precio_linea / (1 + tipo_iva / 100.0), 2)
+            elif gravada:
+                iva = round(precio_linea * tipo_iva / 100.0, 2)
             else:
-                ingreso_ex_iva = ingreso_con_iva
+                iva = 0.0
+            if incluye_iva:
+                ingreso_con_iva, ingreso_ex_iva = precio_linea, round(precio_linea - iva, 2)
+            else:
+                ingreso_con_iva, ingreso_ex_iva = round(precio_linea + iva, 2), precio_linea
             iva_implicito = round(ingreso_con_iva - ingreso_ex_iva, 2)
 
             entrada = tabla.get(sku)
@@ -286,7 +348,7 @@ def aplicar_costes_variables(rows, envio_por_pedido, costs):
             - row["comision_pago"] - row["coste_publicidad"], 2)
 
 
-def write_db(rows):
+def write_db(rows, excluidas=None):
     validate_finite_values(rows)  # Also catch arithmetic overflow before replacing data.
     os.makedirs(DATA_DIR, exist_ok=True)
     if os.path.exists(DB_PATH):
@@ -315,6 +377,9 @@ def write_db(rows):
         "INSERT INTO lineas VALUES (%s)" % ",".join("?" * len(columns)),
         [tuple(row[c] for c in columns) for row in rows],
     )
+    # What was left out, and why, stays queryable so checks.py can report it.
+    conn.execute("CREATE TABLE exclusiones (motivo TEXT, cantidad INTEGER)")
+    conn.executemany("INSERT INTO exclusiones VALUES (?, ?)", sorted((excluidas or {}).items()))
     conn.commit()
     conn.close()
     return columns
@@ -382,10 +447,13 @@ def main():
 
     print("Snapshot: %s" % os.path.basename(path))
     try:
-        rows = build_rows(snapshot, costs)
+        excluidas = {}
+        rows = build_rows(snapshot, costs, excluidas)
     except ConfigError as exc:
         raise SystemExit("INPUT ERROR: %s" % exc) from None
-    write_db(rows)
+    write_db(rows, excluidas)
+    for motivo, cantidad in sorted(excluidas.items()):
+        print("Excluded %s: %d" % (motivo.replace("_", " "), cantidad))
     filas = write_csv(rows, costs)
 
     print("Lines processed: %d" % len(rows))
@@ -409,6 +477,11 @@ def main():
         resultado = sum(f["resultado_variable"] or 0.0 for f in filas)
         print("After shipping, fulfilment, payment fees and advertising: %.2f" % resultado)
 
+    if not costs.get("objetivo"):
+        print()
+        print("Written: data/pipeline.db · data/margins.csv")
+        print("Next: python3 src/checks.py")
+        return 0
     meta, vendidas, dias, desde, hasta, as_of = contador_objetivo(rows, costs)
     print()
     print("TARGET %d units (%s to %s; data through %s)" % (meta, desde, hasta, as_of))

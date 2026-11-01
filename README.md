@@ -34,13 +34,24 @@ forecast. It runs in the browser and leaves the underlying data unchanged.
 
 ## Connect a Shopify store
 
-1. Create a custom app in the store's Shopify admin and grant only `read_orders`
-   and `read_products` (`read_inventory` is optional, for catalogue inspection).
-   Copy `.env.example` to `.env` and add the `myshopify.com` domain, client ID and
-   client secret. Credentials stay on your computer and are never committed.
-2. Declare product costs in a private `costs.private.json`, starting from
-   `costs.example.json`. Optional variable costs (amounts ex VAT, advertising by
-   month); shipping charged to customers is read from each order:
+1. **Create the app.** In the Shopify Dev Dashboard, create an app in the same
+   organization as the store, install it on the store and grant read-only scopes:
+   `read_orders`, `read_products`, `read_inventory` (product costs and stock) and
+   `read_all_orders` (orders older than 60 days). Copy `.env.example` to `.env` and
+   add the `myshopify.com` domain, client ID and client secret. Margin Map exchanges
+   them for a short-lived token on every run; credentials never leave your computer
+   and are ignored by Git.
+2. **Draft the cost model from Shopify.** This reads each variant's price, stock
+   and *Cost per item* and writes `costs.private.json`. Variants without a cost are
+   listed and left out, so their sales block publication until a cost is declared:
+
+   ```bash
+   python3 src/check_access.py
+   python3 src/bootstrap_costs.py
+   ```
+
+   Review the VAT rate, declare bundles and, optionally, variable costs (amounts
+   ex VAT, advertising by month; shipping charged is read from each order):
 
    ```json
    "costes_variables": {
@@ -51,20 +62,30 @@ forecast. It runs in the browser and leaves the underlying data unchanged.
    }
    ```
 
-3. Check the connection, then extract orders and reconcile them against the unit
-   count Shopify reports for the same window:
+3. **Build the dashboard and PDF** with one command. Pass the unit total that
+   Shopify Analytics reports for the same window to stop on any mismatch:
 
    ```bash
-   python3 src/check_access.py
-   python3 src/extract.py --since 2025-01-01 --expected-units 27
-   COSTS_FILE=costs.private.json python3 src/transform.py
-   COSTS_FILE=costs.private.json python3 src/checks.py
-   COSTS_FILE=costs.private.json python3 src/publish.py
+   python3 src/run_shopify_dashboard.py --since 2025-01-01 --expected-units 1240 --open
    ```
 
-   Replace `27` with the independent unit total for the selected window. The
-   extractor paginates orders and line items and stores each extraction as an
-   unchanged snapshot, so every figure can be traced back to it.
+   Each extraction is stored unchanged, so every figure can be traced back to it.
+
+### What the Shopify path accounts for
+
+- **Returns, refunds and order edits:** each line counts by the quantity still sold.
+- **Real VAT per line** from Shopify's tax lines, including reduced rates, and
+  tax-exclusive stores where VAT is added on top of the price.
+- **Shipping after shipping discounts**, and dates in the shop's own timezone.
+- **Gift cards and voided or expired orders** are excluded and reported, so the
+  totals can be reconciled with Shopify.
+- **Price changes, Markets and B2B prices** are reported per SKU instead of
+  blocking publication; margins use the price actually charged.
+- **Resilient extraction:** retries on rate limits, outages and timeouts, and
+  smaller pages automatically when a query is too large for Shopify.
+
+Refunds that are not tied to a line (for example a goodwill refund) and exact
+payment-provider fees are not yet read from Shopify.
 
 ## Other platforms: the Excel template
 

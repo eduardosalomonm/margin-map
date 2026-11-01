@@ -213,7 +213,9 @@ class TestReporting(unittest.TestCase):
         self.assertAlmostEqual(rate, 100 * (1 - 10.0 / (60.5 * (1 / 1.21 - 0.02))), places=1)
         below_cost = copy.deepcopy(COSTS)
         below_cost["productos"]["A"]["coste_unitario"] = 70.0
-        self.assertIsNone(publish.breakeven_discount(below_cost, "A"))
+        # Below cost is a non-positive rate; None is kept for a missing price.
+        self.assertLessEqual(publish.breakeven_discount(below_cost, "A"), 0)
+        self.assertIsNone(publish.breakeven_discount(below_cost, "missing"))
 
     def test_scope_note_never_calls_the_result_net_profit(self):
         self.assertIn("declare them as variable costs", publish.scope_note(None))

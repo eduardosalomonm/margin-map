@@ -10,7 +10,7 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 6177 >>
+<< /Length 6351 >>
 stream
 0.353 0.310 0.910 rg 0 770 595 72 re f
 BT /F2 19 Tf 1.000 1.000 1.000 rg 1 0 0 1 42 805 Tm (Margin Map | Executive summary) Tj ET
@@ -20,7 +20,7 @@ BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 42 740 Tm (Commercial performance) Tj 
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 52 704 Tm (Gross sales) Tj ET
 BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 52 682 Tm (EUR 83,755) Tj ET
 0.969 0.969 0.988 rg 174 668 120 55 re f
-BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 184 704 Tm (Contribution margin) Tj ET
+BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 184 704 Tm (Product margin) Tj ET
 BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 184 682 Tm (EUR 51,319) Tj ET
 0.969 0.969 0.988 rg 306 668 120 55 re f
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 316 704 Tm (Margin rate) Tj ET
@@ -37,7 +37,7 @@ BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 578 Tm (Margin EUR 51,319 + shipping
 BT /F2 14 Tf 0.145 0.165 0.290 rg 1 0 0 1 42 552 Tm (Top product economics) Tj ET
 BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 532 Tm (PRODUCT) Tj ET
 BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 295 532 Tm (GROSS SALES) Tj ET
-BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 415 532 Tm (CONTRIBUTION) Tj ET
+BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 415 532 Tm (PRODUCT MARGIN) Tj ET
 BT /F2 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 515 532 Tm (MARGIN) Tj ET
 0.902 0.914 0.953 rg 42 504 510 1 re f
 BT /F2 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 42 512 Tm (SKU-A - Renewal Serum) Tj ET
@@ -84,12 +84,13 @@ BT /F2 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 42 256 Tm (VIP20) Tj ET
 BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 240 256 Tm (42) Tj ET
 BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 330 256 Tm (EUR 817) Tj ET
 BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 450 256 Tm (EUR 3,270) Tj ET
-0.941 0.976 0.980 rg 42 137 510 90 re f
-BT /F2 11 Tf 0.098 0.478 0.510 rg 1 0 0 1 58 202 Tm (Data-driven decision note) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 185 Tm (74.1% contribution margin on EUR 83,755 gross sales; EUR 16,245 remains to the period) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 173 Tm (benchmark. After shipping, fulfilment, fees and advertising, EUR 35,167 \(50.8% of net) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 161 Tm (sales\) remains.) Tj ET
-BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 146 Tm (Use the interactive dashboard to filter by date, SKU, bundle and promotion code.) Tj ET
+0.941 0.976 0.980 rg 42 104 510 123 re f
+BT /F2 11 Tf 0.098 0.478 0.510 rg 1 0 0 1 58 204 Tm (Decision note and priority actions) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 187 Tm (74.1% product margin on EUR 83,755 gross sales; EUR 16,245 remains to the period benchmark.) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 175 Tm (After shipping, fulfilment, fees and advertising, EUR 35,167 \(50.8% of net sales\) remains.) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 163 Tm (- Protect Daily Reset Set: thinnest product margin \(70.2%\); keep discounts well below its) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 151 Tm (  71.4% break-even.) Tj ET
+BT /F1 9 Tf 0.145 0.165 0.290 rg 1 0 0 1 58 139 Tm (- Review VIP20: 1.50 of margin per EUR 1 of discount, against 3.59 for WELCOME10.) Tj ET
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 92 Tm (Scope: product margin, then declared shipping, fulfilment, payment fees and advertising; not net profit.) Tj ET
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 78 Tm (Per-order costs are allocated by order value; overhead and refunds are excluded.) Tj ET
 BT /F1 8 Tf 0.467 0.502 0.620 rg 1 0 0 1 42 64 Tm (Source: Excel import, checked by integrity controls before publication. Sample-store figures are illustrative.) Tj ET
@@ -109,10 +110,10 @@ xref
 0000000064 00000 n 
 0000000121 00000 n 
 0000000257 00000 n 
-0000006486 00000 n 
-0000006556 00000 n 
+0000006660 00000 n 
+0000006730 00000 n 
 trailer
 << /Size 7 /Root 1 0 R >>
 startxref
-6631
+6805
 %EOF

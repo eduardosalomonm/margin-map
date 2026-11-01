@@ -25,18 +25,23 @@ LINE_ITEM_FIELDS = """
   title
   sku
   quantity
-  variant { id title }
-  product { id title }
-  originalUnitPriceSet { shopMoney { amount currencyCode } }
-  discountedUnitPriceSet { shopMoney { amount currencyCode } }
-  totalDiscountSet { shopMoney { amount currencyCode } }
-  discountAllocations { allocatedAmountSet { shopMoney { amount currencyCode } } }
+  currentQuantity
+  isGiftCard
   taxable
+  originalUnitPriceSet { shopMoney { amount currencyCode } }
+  discountAllocations { allocatedAmountSet { shopMoney { amount currencyCode } } }
+  taxLines { ratePercentage priceSet { shopMoney { amount } } }
 """
 
+# Page sizes start here and halve when Shopify reports MAX_COST_EXCEEDED, so a
+# store with large orders still extracts instead of failing on its first page.
+ORDERS_PER_PAGE = 25
+LINES_PER_ORDER = 25
+
 ORDERS_QUERY = """
-query($cursor: String, $query: String) {
-  orders(first: 50, after: $cursor, query: $query, sortKey: CREATED_AT, reverse: false) {
+query($cursor: String, $query: String, $first: Int!, $lines: Int!) {
+  shop { ianaTimezone currencyCode }
+  orders(first: $first, after: $cursor, query: $query, sortKey: CREATED_AT, reverse: false) {
     pageInfo { hasNextPage endCursor }
     edges {
       node {
@@ -46,15 +51,15 @@ query($cursor: String, $query: String) {
         cancelledAt
         displayFinancialStatus
         test
-        currentTotalPriceSet { shopMoney { amount currencyCode } }
-        currentTotalDiscountsSet { shopMoney { amount } }
-        totalShippingPriceSet { shopMoney { amount } }
-        currentTotalTaxSet { shopMoney { amount } }
         taxesIncluded
         discountCodes
+        currentTotalDiscountsSet { shopMoney { amount } }
+        totalShippingPriceSet { shopMoney { amount } }
+        currentShippingPriceSet { shopMoney { amount } }
+        currentTotalTaxSet { shopMoney { amount } }
         # Sin customer: requiere read_customers (dato personal protegido) y el panel
-        # no lo necesita. Si algun dia hace falta cohorte de cliente, sera en A5.
-        lineItems(first: 50) {
+        # no lo necesita.
+        lineItems(first: $lines) {
           pageInfo { hasNextPage endCursor }
           edges {
             node { %s }
@@ -93,14 +98,27 @@ def fetch_remaining_line_items(client, order):
     line_items.pop("pageInfo", None)
 
 
-def fetch_orders(client, since=None):
+def fetch_orders(client, since=None, shop=None):
+    """All orders since a date. `shop`, if given, receives the timezone and currency."""
     orders = []
     cursor = None
     query_filter = "created_at:>=%s" % since if since else None
     page = 0
+    first, lines = ORDERS_PER_PAGE, LINES_PER_ORDER
 
     while True:
-        data = client.query(ORDERS_QUERY, {"cursor": cursor, "query": query_filter})
+        try:
+            data = client.query(ORDERS_QUERY, {"cursor": cursor, "query": query_filter,
+                                               "first": first, "lines": lines})
+        except ShopifyError as exc:
+            if "MAX_COST_EXCEEDED" in getattr(exc, "codes", ()) and first > 1:
+                first = max(1, first // 2)
+                lines = max(5, lines // 2)
+                print("   query too large for Shopify; retrying with %d orders per page" % first)
+                continue
+            raise
+        if shop is not None and data.get("shop"):
+            shop.update(data["shop"])
         block = data["orders"]
         for edge in block["edges"]:
             order = edge["node"]
@@ -124,7 +142,9 @@ def summarise(orders):
     for order in live:
         for edge in order["lineItems"]["edges"]:
             item = edge["node"]
-            quantity = item.get("quantity") or 0
+            if item.get("isGiftCard"):
+                continue
+            quantity = item.get("currentQuantity", item.get("quantity")) or 0
             units += quantity
             key = item.get("sku") or ("SIN_SKU: %s" % item.get("title"))
             skus[key] = skus.get(key, 0) + quantity
@@ -145,8 +165,9 @@ def main():
         return 1
 
     print("Extracting orders from %s" % client.store)
+    shop = {}
     try:
-        orders = fetch_orders(client, args.since)
+        orders = fetch_orders(client, args.since, shop)
     except ShopifyError as exc:
         print("EXTRACTION ERROR: %s" % exc)
         return 1
@@ -165,6 +186,8 @@ def main():
         json.dump(
             {"extraido": datetime.datetime.now().isoformat(),
              "tienda": client.store,
+             "zona_horaria": shop.get("ianaTimezone"),
+             "moneda": shop.get("currencyCode"),
              "pedidos": orders},
             fh, ensure_ascii=False, indent=1,
         )

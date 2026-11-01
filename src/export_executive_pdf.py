@@ -31,8 +31,12 @@ def ellipsize(value, width):
     return value if len(value) <= width else value[:width - 3].rstrip() + "..."
 
 
+# The store's ISO currency code; set from the cost model in main().
+CURRENCY = "EUR"
+
+
 def currency(value):
-    return "EUR {:,.0f}".format(value or 0)
+    return "%s {:,.0f}".format(value or 0) % CURRENCY
 
 
 def amount(value):
@@ -79,6 +83,36 @@ def pdf_bytes(stream):
     return "".join(output).encode("latin-1")
 
 
+def priority_actions(conn, costs):
+    """Two concrete next steps, matching the dashboard's Recommended actions."""
+    from publish import breakeven_discount  # lazy: publish reads its environment on import
+    model = variable_costs(costs)
+    result = []
+    thin = conn.execute("""
+        SELECT sku, titulo, SUM(margen_contribucion) / SUM(ingreso_neto) FROM lineas
+        WHERE coste_unitario IS NOT NULL GROUP BY sku HAVING SUM(ingreso_neto) > 0
+        ORDER BY 3 LIMIT 1""").fetchone()
+    if thin:
+        rate = breakeven_discount(costs, thin[0], model)
+        name = ellipsize(thin[1] or thin[0], 28)
+        if rate is not None and rate > 0:
+            result.append("Protect %s: thinnest product margin (%s); keep discounts well below its %s break-even."
+                          % (name, pct(100 * thin[2]), pct(rate)))
+        elif rate is not None:
+            result.append("Reprice %s: today's price does not cover product cost, VAT and payment fees." % name)
+    field = "resultado_variable" if model is not None else "margen_contribucion"
+    promos = conn.execute("""
+        SELECT codigos_descuento, SUM(%s), SUM(descuento_linea) FROM lineas
+        WHERE codigos_descuento <> '' GROUP BY codigos_descuento HAVING SUM(descuento_linea) > 0
+        ORDER BY SUM(%s) / SUM(descuento_linea)""" % (field, field)).fetchall()
+    if len(promos) > 1:
+        worst, best = promos[0], promos[-1]
+        result.append("Review %s: %s of margin per %s 1 of discount, against %s for %s."
+                      % (ellipsize(worst[0], 18), "%.2f" % (worst[1] / worst[2]), CURRENCY,
+                         "%.2f" % (best[1] / best[2]), ellipsize(best[0], 18)))
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description="Export a one-page executive PDF summary.")
     parser.add_argument("--output", default=DEFAULT_OUTPUT, help="target PDF path")
@@ -87,6 +121,9 @@ def main():
         raise SystemExit("data/pipeline.db does not exist. Run the dashboard pipeline first.")
 
     costs = load_costs(costs_path())
+    global CURRENCY
+    # Codes, not symbols: the built-in PDF font cannot draw every currency symbol.
+    CURRENCY = str((costs.get("meta") or {}).get("moneda") or "EUR")[:3].upper()
     conn = sqlite3.connect(DB_PATH)
     total = conn.execute("""
         SELECT COALESCE(SUM(ingreso_con_iva), 0), COALESCE(SUM(ingreso_neto), 0),
@@ -110,6 +147,7 @@ def main():
         ORDER BY SUM(descuento_linea) DESC LIMIT 4
     """).fetchall()
     window = conn.execute("SELECT MIN(fecha), MAX(fecha) FROM lineas").fetchone()
+    actions = priority_actions(conn, costs)
     conn.close()
 
     gross, net, margin, discount, units, orders = total
@@ -132,11 +170,11 @@ def main():
     elif margin < 0:
         decision = "Trading is loss-making: review price, product cost and bundle composition before scaling demand."
     elif margin_pct < 30:
-        decision = "Contribution is positive but thin at %s; protect margin before increasing promotion pressure." % pct(margin_pct)
+        decision = "Product margin is positive but thin at %s; protect margin before increasing promotion pressure." % pct(margin_pct)
     elif progress >= 100:
-        decision = "The imported period has passed its %s gross-sales benchmark with a %s contribution margin." % (currency(target), pct(margin_pct))
+        decision = "The imported period has passed its %s gross-sales benchmark with a %s product margin." % (currency(target), pct(margin_pct))
     else:
-        decision = "%s contribution margin on %s gross sales; %s remains to the period benchmark." % (pct(margin_pct), currency(gross), currency(max(target - gross, 0)))
+        decision = "%s product margin on %s gross sales; %s remains to the period benchmark." % (pct(margin_pct), currency(gross), currency(max(target - gross, 0)))
     if model is not None and after >= 0 and not decision.startswith(("Product margin is positive", "A ")):
         decision += " After shipping, fulfilment, fees and advertising, %s (%s of net sales) remains." % (currency(after), pct(after_pct))
 
@@ -147,7 +185,7 @@ def main():
                         (ellipsize(brand, 24), " (sample store)" if sample else "", window[0], window[1], source),
                         9, "E8E7FF")])
     stream.append(text(42, 740, "Commercial performance", 14, "252A4A", True))
-    cards = [("Gross sales", currency(gross)), ("Contribution margin", currency(margin)),
+    cards = [("Gross sales", currency(gross)), ("Product margin", currency(margin)),
              ("Orders", "{:,.0f}".format(orders)), ("Margin rate", pct(margin_pct))]
     if model is not None:
         cards[2] = ("Margin rate", pct(margin_pct))
@@ -162,7 +200,7 @@ def main():
     if model is not None:
         stream.append(text(42, 578, "Margin %s + shipping %s - fulfilment %s - fees %s - ads %s = %s after variable costs"
                            % (currency(margin), amount(shipping), amount(fulfilment), amount(fees), amount(advertising), currency(after)), 8, "77809E"))
-    stream.extend([text(42, 552, "Top product economics", 14, "252A4A", True), text(42, 532, "PRODUCT", 8, "77809E", True), text(295, 532, "GROSS SALES", 8, "77809E", True), text(415, 532, "CONTRIBUTION", 8, "77809E", True), text(515, 532, "MARGIN", 8, "77809E", True)])
+    stream.extend([text(42, 552, "Top product economics", 14, "252A4A", True), text(42, 532, "PRODUCT", 8, "77809E", True), text(295, 532, "GROSS SALES", 8, "77809E", True), text(415, 532, "PRODUCT MARGIN", 8, "77809E", True), text(515, 532, "MARGIN", 8, "77809E", True)])
     y = 512
     for sku, name, product_units, product_gross, product_margin, product_net in products:
         rate = 100 * product_margin / product_net if product_net else 0
@@ -174,16 +212,19 @@ def main():
     for code, promo_orders, promo_discount, promo_sales in promotions:
         stream.extend([rect(42, y - 8, 510, 1, "E6E9F3"), text(42, y, ellipsize(code, 30), 9, "252A4A", True), text(240, y, "{:,.0f}".format(promo_orders), 9), text(330, y, currency(promo_discount), 9), text(450, y, currency(promo_sales), 9)])
         y -= 27
-    decision_lines = textwrap.wrap(decision, width=88, break_long_words=False)[:3]
-    stream.extend([rect(42, 137, 510, 90, "F0F9FA"), text(58, 202, "Data-driven decision note", 11, "197A82", True)])
-    stream.extend(text(58, 185 - index * 12, line, 9) for index, line in enumerate(decision_lines))
+    decision_lines = textwrap.wrap(decision, width=92, break_long_words=False)[:3]
+    for action in actions:
+        wrapped = textwrap.wrap(action, width=88, break_long_words=False)[:2]
+        decision_lines.extend(["- " + wrapped[0]] + ["  " + rest for rest in wrapped[1:]])
+    stream.extend([rect(42, 104, 510, 123, "F0F9FA"), text(58, 204, "Decision note and priority actions", 11, "197A82", True)])
+    stream.extend(text(58, 187 - index * 12, line, 9) for index, line in enumerate(decision_lines[:7]))
     if model is None:
         scope = ("Scope: product margin after discounts and VAT, minus declared product costs; not net profit.",
                  "Excludes shipping, payment fees, acquisition and overhead; refunds require separate reconciliation.")
     else:
         scope = ("Scope: product margin, then declared shipping, fulfilment, payment fees and advertising; not net profit.",
                  "Per-order costs are allocated by order value; overhead and refunds are excluded.")
-    stream.extend([text(58, 146, "Use the interactive dashboard to filter by date, SKU, bundle and promotion code.", 9),
+    stream.extend([
                    text(42, 92, scope[0], 8, "77809E"),
                    text(42, 78, scope[1], 8, "77809E"),
                    text(42, 64, ("Source: %s, checked by integrity controls before publication.%s"

@@ -30,7 +30,7 @@ test('undefined free-sample ratios do not create a false margin watch',()=>{
   const nodes={};const context={hasVariable:false,document:{getElementById:id=>nodes[id]||(nodes[id]={})},pct:v=>v==null?'n/a':`${v}%`,euro:String};
   vm.createContext(context);vm.runInContext(functionSource('renderInsight','render'),context);
   context.renderInsight({net:100,margin:50,gross:100},[{name:'Paid',gross:100,margin:50,marginPct:50},{name:'Sample',gross:0,margin:0,marginPct:null}],[],null);
-  assert.equal(nodes['insight-title'].textContent,'Top sales driver: Paid');
+  assert.equal(nodes['insight-title'].textContent,'Largest margin source: Paid');
 });
 test('negative contribution is explicitly signed rather than clamped in the flow view',()=>{
   const source=fs.readFileSync(require.resolve('../src/publish.py'),'utf8');

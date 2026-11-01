@@ -164,7 +164,7 @@ def validate_costs(costs, path="cost model"):
     validate_finite_values(costs)
     if not isinstance(costs, dict):
         raise ConfigError("%s must contain an object." % path)
-    required = ("productos", "objetivo")
+    required = ("productos",)  # a sales target is optional
     missing = [key for key in required if key not in costs]
     if missing:
         raise ConfigError("%s is missing: %s" % (path, ", ".join(missing)))
@@ -180,7 +180,8 @@ def validate_costs(costs, path="cost model"):
         except (TypeError, ValueError):
             raise ConfigError("%s: costs and prices for %s must be non-negative numbers."
                               % (path, sku))
-    objective = costs["objetivo"]
-    if not isinstance(objective, dict) or not all(k in objective for k in ("unidades", "desde", "hasta")):
+    objective = costs.get("objetivo")
+    if objective is not None and (not isinstance(objective, dict)
+                                  or not all(k in objective for k in ("unidades", "desde", "hasta"))):
         raise ConfigError("%s: target needs units, start and end." % path)
     validate_variable_costs(costs, path)

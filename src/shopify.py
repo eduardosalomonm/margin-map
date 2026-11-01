@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -13,7 +14,24 @@ DEFAULT_TIMEOUT = 30
 
 
 class ShopifyError(Exception):
-    pass
+    def __init__(self, message, codes=()):
+        super().__init__(message)
+        # Shopify's error codes (ACCESS_DENIED, MAX_COST_EXCEEDED, ...) describe the
+        # request, never store data, so they are safe to show and to act on.
+        self.codes = tuple(codes)
+
+
+def error_codes(errors):
+    if not isinstance(errors, list):
+        return ()
+    codes = {str(e["extensions"]["code"]) for e in errors
+             if isinstance(e, dict) and isinstance(e.get("extensions"), dict)
+             and e["extensions"].get("code")}
+    # Only values shaped like an error code are shown; anything else is withheld.
+    return tuple(sorted(code for code in codes if re.match(r"^[A-Z][A-Z_]{1,40}$", code)))
+
+
+TRANSIENT_HTTP = {429, 500, 502, 503, 504}
 
 
 def load_env(path=".env"):
@@ -109,12 +127,22 @@ class Client:
                     self.actual_api_version = response.headers.get("X-Shopify-API-Version")
                     body = json.loads(response.read().decode("utf-8"))
             except urllib.error.HTTPError as exc:
-                if exc.code == 429 and attempt < retries - 1:
+                # Rate limits and Shopify-side outages are temporary: wait and retry.
+                if exc.code in TRANSIENT_HTTP and attempt < retries - 1:
                     time.sleep(2 ** attempt)
                     continue
-                raise ShopifyError("Shopify query failed (HTTP %s); response details withheld." % exc.code) from None
-            except (urllib.error.URLError, ValueError, OSError):
-                raise ShopifyError("Shopify query failed or returned invalid JSON; response details withheld.") from None
+                hint = {401: " The access token was rejected.",
+                        403: " The app lacks a required scope."}.get(exc.code, "")
+                raise ShopifyError("Shopify query failed (HTTP %s).%s" % (exc.code, hint)) from None
+            except (urllib.error.URLError, OSError):
+                # Timeouts and dropped connections are retried like a 5xx.
+                if attempt < retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise ShopifyError("Could not reach Shopify after %d attempts; check the "
+                                   "connection and try again." % retries) from None
+            except ValueError:
+                raise ShopifyError("Shopify returned invalid JSON; response details withheld.") from None
 
             if not isinstance(body, dict):
                 raise ShopifyError("Unexpected Shopify response shape; response details withheld.")
@@ -127,7 +155,12 @@ class Client:
                 if throttled and attempt < retries - 1:
                     time.sleep(2 + 2 * attempt)
                     continue
-                raise ShopifyError("Shopify reported query errors; check scopes and query schema. Response details withheld.")
+                codes = error_codes(errors)
+                advice = ""
+                if "ACCESS_DENIED" in codes:
+                    advice = " Grant the app read_orders and read_products (read_inventory for costs)."
+                raise ShopifyError("Shopify reported query errors (%s).%s"
+                                   % (", ".join(codes) or "no error code", advice), codes)
 
             if "data" not in body:
                 raise ShopifyError("Shopify response is missing data; response details withheld.")

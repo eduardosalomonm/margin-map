@@ -13,6 +13,17 @@ All notable public changes to Margin Map are recorded here.
   PDF and workbook name their data source, label the sample store once, and no
   longer show version numbers or demo wording on the reading surface.
 - Fixed the online-dashboard links, which now point to https://marginmap.eilvi.com/.
+- Shopify path: returns, refunds and order edits count by current quantity; real
+  VAT per line from tax lines, including tax-exclusive stores; shipping after
+  discounts; shop timezone; gift cards and voided or expired orders excluded and
+  reported; price changes warn per SKU instead of blocking.
+- Shopify client retries outages and timeouts, shows Shopify's error codes and
+  shrinks pages when a query is too large.
+- Added `bootstrap_costs.py` (cost model drafted from Shopify's cost per item) and
+  `run_shopify_dashboard.py` (one command, dashboard and PDF). A sales target is optional.
+- "Contribution margin" is now "Product margin"; a Recommended actions card and PDF
+  priority actions name the next steps; overstock is flagged; the PDF uses the
+  store's currency.
 
 ## 1.2.0 - 2026-10-31
 

@@ -224,12 +224,12 @@ that you can write to the destination folder.
 
 ## Connect a Shopify store
 
-Shopify stores do not need the Orders sheet: Margin Map reads orders from the
-Shopify Admin API with read-only access (`read_orders`, `read_products`). Keep
-`.env` and the store's cost model on your computer, run
-`python3 src/check_access.py`, then extract orders and reconcile them against
-Shopify's unit count before publishing. See
-[README.md](README.md#connect-a-shopify-store) for the commands.
+Shopify stores do not need the Orders sheet. Margin Map reads orders with
+read-only access, drafts the cost model from each variant's *Cost per item*
+(`python3 src/bootstrap_costs.py`), and builds the dashboard and PDF with one
+command (`python3 src/run_shopify_dashboard.py`). Returns, gift cards, reduced VAT
+rates and the shop's timezone are handled automatically. See
+[README.md](README.md#connect-a-shopify-store) for the app setup.
 
 ## Contributors: verify before pushing
 
