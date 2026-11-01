@@ -79,6 +79,13 @@ class TestOrderAdjustments(unittest.TestCase):
         self.assertEqual(excluded["reembolsos_sin_devolucion"], 1)
         self.assertAlmostEqual(excluded["importe_reembolsado_sin_devolucion"], 12.1, places=2)
 
+    def test_a_refunded_gift_card_is_not_a_product_refund(self):
+        excluded = {}
+        card = line(sku="", isGiftCard=True, quantity=1, currentQuantity=0, originalUnitPriceSet=money(50.0))
+        rows = build_rows({"pedidos": [order([line(), card], totalRefundedSet=money(50.0))]}, COSTS, excluded)
+        self.assertAlmostEqual(rows[0]["ingreso_con_iva"], 121.0, places=2)
+        self.assertNotIn("reembolsos_sin_devolucion", excluded)
+
     def test_returned_units_are_not_deducted_twice(self):
         excluded = {}
         rows = build_rows({"pedidos": [order([line(currentQuantity=1)], totalRefundedSet=money(60.5))]},
@@ -149,7 +156,7 @@ class TestShopifyChecks(unittest.TestCase):
         excluded = {}
         rows = build_rows({"pedidos": [order([line(), line(sku="", isGiftCard=True)])]}, COSTS, excluded)
         result = checks.run_all(self.database(rows, excluded), COSTS)
-        self.assertTrue(any("gift-card" in message for _, message in result.avisos))
+        self.assertTrue(any("gift-card" in message.lower() for _, message in result.avisos))
 
 
 def response(body):
@@ -245,6 +252,22 @@ class TestDashboardReading(unittest.TestCase):
         cover = publish.inventory_metrics(conn, costs)[0]["cover_weeks"]
         # 30 units in 30 days is 7 a week: 60 units last about 8.6 weeks, not 25.7.
         self.assertAlmostEqual(cover, 60 / 7.0, places=1)
+
+
+class TestReturnedOrders(unittest.TestCase):
+    def test_a_fully_returned_order_is_not_counted_as_an_order(self):
+        import publish
+        from transform import write_db
+        import tempfile
+        rows = build_rows({"pedidos": [order([line()]),
+                                       order([line(currentQuantity=0)], name="#2")]}, COSTS)
+        conn = sqlite3.connect(":memory:")
+        columns = list(rows[0])
+        conn.execute("CREATE TABLE lineas (%s)" % ", ".join(columns))
+        conn.executemany("INSERT INTO lineas VALUES (%s)" % ",".join("?" * len(columns)),
+                         [tuple(r[c] for c in columns) for r in rows])
+        trading = publish.trading_metrics(conn)
+        self.assertEqual((trading["orders"], trading["lines"]), (1, 1))
 
 
 class TestCostRefresh(unittest.TestCase):

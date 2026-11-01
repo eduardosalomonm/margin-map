@@ -201,7 +201,7 @@ def main():
                    "moneda": "EUR", "pedidos": orders}, handle,
                   ensure_ascii=False, indent=1)
     print("Synthetic snapshot written: %s" % os.path.relpath(path, BASE))
-    print("%d orders · €%s gross sales after discounts" % (len(orders), "%.2f" % gross_sales(orders)))
+    print("%d orders · €%s sales incl. VAT after discounts" % (len(orders), "%.2f" % gross_sales(orders)))
     print("Now run: python3 src/transform.py && python3 src/checks.py")
     return 0
 

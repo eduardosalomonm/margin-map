@@ -295,9 +295,9 @@ def check_costes_variables(conn, costs, res):
 
 
 EXCLUSION_NOTES = {
-    "tarjetas_regalo": "%d gift-card lines were excluded: a gift card is a liability until redeemed, not product revenue.",
-    "pedidos_sin_pago": "%d voided or expired orders were excluded because no payment was completed.",
-    "unidades_devueltas": "%d units were returned, refunded or removed after the order; margins use the quantities still sold, and the orders keep their fulfilment and payment fees.",
+    "tarjetas_regalo": "Gift-card lines excluded: %d. A gift card is a liability until redeemed, not product revenue.",
+    "pedidos_sin_pago": "Voided or expired orders excluded: %d. No payment was completed.",
+    "unidades_devueltas": "Units returned, refunded or removed after the order: %d. Margins use the quantities still sold, and those orders keep their fulfilment and payment fees.",
 }
 
 
@@ -313,8 +313,8 @@ def check_exclusiones(conn, costs, res):
             res.aviso("Excluded and adjusted orders", EXCLUSION_NOTES[motivo] % cantidad)
     if valores.get("reembolsos_sin_devolucion"):
         res.aviso("Excluded and adjusted orders",
-                  "%d orders had %.2f refunded without returning items (for example a goodwill "
-                  "refund); it was deducted from their sales."
+                  "Orders with money refunded without returning items (for example a goodwill "
+                  "refund): %d, totalling %.2f, deducted from their sales."
                   % (valores["reembolsos_sin_devolucion"], valores.get("importe_reembolsado_sin_devolucion") or 0))
 
 

@@ -97,7 +97,7 @@ def monthly_metrics(conn):
     rows = conn.execute("""
         SELECT substr(fecha, 1, 7), ROUND(SUM(ingreso_con_iva), 2),
                ROUND(SUM(ingreso_neto), 2), ROUND(SUM(margen_contribucion), 2),
-               SUM(unidades), COUNT(DISTINCT pedido)
+               SUM(unidades), COUNT(DISTINCT CASE WHEN unidades > 0 THEN pedido END)
         FROM lineas GROUP BY 1 ORDER BY 1
     """).fetchall()
     if not rows:
@@ -172,8 +172,9 @@ def trading_metrics(conn):
         SELECT ROUND(SUM(ingreso_con_iva), 2), ROUND(SUM(descuento_linea), 2),
                ROUND(SUM(iva_implicito), 2), ROUND(SUM(coste_total), 2),
                ROUND(SUM(margen_contribucion), 2), SUM(unidades),
-               COUNT(DISTINCT pedido), COUNT(*),
-               COUNT(DISTINCT CASE WHEN codigos_descuento <> '' THEN pedido END)
+               COUNT(DISTINCT CASE WHEN unidades > 0 THEN pedido END),
+               SUM(CASE WHEN unidades > 0 THEN 1 ELSE 0 END),
+               COUNT(DISTINCT CASE WHEN codigos_descuento <> '' AND unidades > 0 THEN pedido END)
         FROM lineas
     """).fetchone()
     gross, discount, vat, cost, margin, units, orders, lines, discounted = [x or 0 for x in row]
@@ -516,6 +517,8 @@ def main():
         "{{CURRENCY_SYMBOL}}": SYMBOLS.get(currency_code, currency_code),
         "{{ANNUAL_TARGET_VALUE}}": "%.2f" % annual_target,
         "{{HAS_TARGET}}": "true" if annual_target else "false",
+        "{{TARGET_HINT}}": ("the Settings sheet" if data_source(costs)[0] == "Excel import"
+                            else "the cost model (meta.objetivo_ventas_brutas)"),
         "{{STOCK_AS_OF}}": html.escape("stock as of %s" % costs["meta"]["stock_actualizado"]
                                        if (costs.get("meta") or {}).get("stock_actualizado")
                                        else "stock as declared"),

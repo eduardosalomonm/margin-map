@@ -216,6 +216,12 @@ def build_rows(snapshot, costs, excluidas=None):
         for item in lineas:
             if item.get("isGiftCard"):
                 excluidas["tarjetas_regalo"] = excluidas.get("tarjetas_regalo", 0) + 1
+                # A refunded gift card is in the order's refund total too; it must
+                # not be read as money refunded on the products.
+                pedidas = item.get("quantity") or 0
+                vigentes = item.get("currentQuantity", pedidas)
+                vigentes = pedidas if vigentes is None else vigentes
+                devuelto += (money(item, "originalUnitPriceSet") or 0.0) * max(pedidas - vigentes, 0)
                 continue
             sku = item.get("sku") or ""
             pedida = item.get("quantity") or 0

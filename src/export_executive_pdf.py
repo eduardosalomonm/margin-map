@@ -128,7 +128,7 @@ def main():
     total = conn.execute("""
         SELECT COALESCE(SUM(ingreso_con_iva), 0), COALESCE(SUM(ingreso_neto), 0),
                COALESCE(SUM(margen_contribucion), 0), COALESCE(SUM(descuento_linea), 0),
-               COALESCE(SUM(unidades), 0), COUNT(DISTINCT pedido)
+               COALESCE(SUM(unidades), 0), COUNT(DISTINCT CASE WHEN unidades > 0 THEN pedido END)
         FROM lineas
     """).fetchone()
     variable = conn.execute("""
@@ -142,7 +142,7 @@ def main():
         FROM lineas GROUP BY sku, titulo ORDER BY SUM(ingreso_con_iva) DESC LIMIT 5
     """).fetchall()
     promotions = conn.execute("""
-        SELECT codigos_descuento, COUNT(DISTINCT pedido), SUM(descuento_linea), SUM(ingreso_con_iva)
+        SELECT codigos_descuento, COUNT(DISTINCT CASE WHEN unidades > 0 THEN pedido END), SUM(descuento_linea), SUM(ingreso_con_iva)
         FROM lineas WHERE codigos_descuento <> '' GROUP BY codigos_descuento
         ORDER BY SUM(descuento_linea) DESC LIMIT 4
     """).fetchall()

@@ -31,6 +31,9 @@ All notable public changes to Margin Map are recorded here.
   self-referential 100%; "Sales incl. VAT" replaces "Gross sales"; discount and
   VAT warnings are summarised for live stores; `bootstrap_costs.py --update`
   refreshes stock, prices and new SKUs on every Shopify run.
+- Critique round 3: fully returned orders no longer count as orders in AOV, basket
+  size or promotion counts; a refunded gift card is not deducted from product
+  sales; warning wording and the no-target hint follow the data source.
 
 ## 1.2.0 - 2026-10-31
 
