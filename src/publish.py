@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import checks  # noqa: E402
-from config import ConfigError, costs_path, data_source, load_costs, variable_costs  # noqa: E402
+from config import ConfigError, costs_path, currency_code, data_source, load_costs, product_cost_basis, variable_costs, variable_cost_gaps  # noqa: E402
 from project_meta import version  # noqa: E402
 from transform import catalogo, latest_snapshot  # noqa: E402
 
@@ -60,7 +60,7 @@ SYMBOL = SYMBOLS["EUR"]
 
 
 def currency(value, decimals=0):
-    return "%s%s" % (SYMBOL, "{:,.{precision}f}".format(value or 0, precision=decimals))
+    return "%s%s" % (html.escape(SYMBOL), "{:,.{precision}f}".format(value or 0, precision=decimals))
 
 
 def script_json(value):
@@ -304,7 +304,38 @@ def scope_note(model):
     return ("Product margin means sales after discounts and VAT, minus declared product costs. "
             "After variable costs also adds the shipping customers paid and deducts declared "
             "fulfilment, payment fees and advertising, allocated to lines by value. Salaries, rent, software, "
-            "returns and other overhead are still excluded.")
+            "return handling and other overhead are still excluded. Undeclared costs are excluded "
+            "from the subtotal, not verified as zero. Advertising allocation is not marketing attribution.")
+
+
+def cost_assumptions(costs, months):
+    block = costs.get("costes_variables") or {}
+    scenario = (costs.get("meta") or {}).get("pricing_model") == "scenario"
+    undated = sum(not product.get("costes") for product in costs["productos"].values())
+    product_status = "Scenario" if scenario else ("Undated costs present" if undated else "Dated declarations")
+    product_method = ("Current Catalogue costs; historical cost entries are retained for Actual mode." if scenario
+                      else "Cost effective on the sale date. An undated fallback is disclosed in Data controls; "
+                           "sales before the first dated cost block the report.")
+    rows = [("Product costs", product_status, product_method)]
+    for field, label in (("logistica_por_pedido", "Fulfilment"),
+                         ("comision_pago_pct", "Payment fee rate"),
+                         ("comision_pago_fija", "Fixed payment fee")):
+        declared = block.get(field) not in (None, "")
+        rows.append((label, "Declared rate" if declared else "Missing · excluded",
+                     "Estimated from the declared per-order/rate model; allocated to lines by value."
+                     if declared else "Enter a value, including an explicit 0 for a known zero cost."))
+    missing_ads = [month for month in months if (block.get("publicidad") or {}).get(month) in (None, "")]
+    rows.append(("Advertising", "Incomplete · excluded months" if missing_ads else "Declared · allocated",
+                 "Monthly spend is shared by net revenue, not attributed to individual products or campaigns."
+                 + (" Missing: " + ", ".join(sorted(missing_ads)) + "." if missing_ads else "")))
+    rows.append(("Shipping charged", "Declared estimate" if data_source(costs)[0] == "Excel import" else "Recorded charge",
+                 "Excel uses a declared per-order charge; Shopify uses order shipping after adjustments. "
+                 "Shipping VAT uses the store's configured rate."))
+    rows.append(("Refund timing", "Order-date view", "Adjusted sales remain on the original order date. "
+                 "Shopify event-date reports can differ; this is not a cash-flow report."))
+    return '<table><thead><tr><th>Input</th><th>Basis</th><th>How to read it</th></tr></thead><tbody>' + "".join(
+        "<tr><th scope='row'>%s</th><td>%s</td><td>%s</td></tr>" % tuple(html.escape(value) for value in row)
+        for row in rows) + "</tbody></table>"
 
 
 def product_metrics(conn, costs):
@@ -463,6 +494,8 @@ def main():
     model = variable_costs(costs)
     monthly = monthly_metrics(conn)
     daily = daily_metrics(conn, with_variable_costs=model is not None)
+    months = {row["date"][:7] for row in daily}
+    cost_gaps = variable_cost_gaps(costs, months)
     as_of_date = (datetime.datetime.strptime(daily[-1]["date"], "%Y-%m-%d").date()
                   if daily else None)
     data_through = as_of_date.strftime("%d %b %Y") if as_of_date else "No sales data"
@@ -488,9 +521,9 @@ def main():
     # latest order date as its commercial "today", not the computer clock.
     projection = pace(costs, units_in_window(conn, costs),
                       today=as_of_date or datetime.date(1970, 1, 1))
-    currency_code = (costs.get("meta", {}) or {}).get("moneda", "EUR")
+    code = currency_code(costs)
     global SYMBOL
-    SYMBOL = SYMBOLS.get(currency_code, currency_code)
+    SYMBOL = SYMBOLS.get(code, code)
     result = checks.run_all(conn, costs)
     if result.errores and not args.allow_errors:
         conn.close()
@@ -507,14 +540,33 @@ def main():
         page = page.replace("{{SCENARIO_SCRIPT}}", handle.read())
     with open(os.path.join(BASE, "src", "dashboard_charts.js"), encoding="utf-8") as handle:
         page = page.replace("{{CHART_SCRIPT}}", handle.read())
+    sample = data_source(costs)[1]
+    with open(os.path.join(BASE, "src", "decision_case.html"), encoding="utf-8") as handle:
+        page = page.replace("{{DECISION_CASE}}", handle.read() if sample else "")
+    case_entry = ('<section class="card case-entry" aria-labelledby="case-title"><div>'
+                  '<p class="eyebrow">Illustrative decision case · Luma Vale</p>'
+                  '<h2 id="case-title">More sales. Less margin. Would you run the offer?</h2>'
+                  '<p>A 20% lower selling price and 30% more orders can lift sales while leaving less '
+                  'after costs. Follow the calculation, then test a smaller discount.</p></div>'
+                  '<button class="export" type="button" id="start-decision-case">Explore the decision</button></section>')
     replacements = {
+        "{{CASE_ENTRY}}": case_entry if sample else "",
+        "{{COST_BASIS}}": script_json(product_cost_basis(costs)),
+        "{{COST_ASSUMPTIONS}}": cost_assumptions(costs, months),
+        "{{COST_COVERAGE_NOTICE}}": ('<section class="integrity issue" role="status"><div>'
+                                     '<b>Incomplete costs · known-cost subtotal only</b><p>Missing: %s. '
+                                     'These costs are excluded, not confirmed zero. Review Input assumptions '
+                                     'in Data controls before using the result.</p></div></section>'
+                                     % html.escape("; ".join(cost_gaps)) if model is not None and cost_gaps else ""),
+        "{{SCENARIO_MODEL}}": script_json({"paymentRate": model["comision_pago_pct"] / 100,
+                                          "incomplete": bool(cost_gaps)} if model is not None else None),
         "{{APP_VERSION}}": html.escape(version()),
         "{{BRAND}}": html.escape(costs.get("meta", {}).get("marca", "Store")),
         "{{BRAND_UPPER}}": html.escape(costs.get("meta", {}).get("marca", "Store").upper()),
         "{{SIDEBAR_NOTE}}": source_note(costs),
         "{{SOURCE_LABEL}}": html.escape(data_source(costs)[0]),
-        "{{CURRENCY_CODE}}": html.escape(currency_code),
-        "{{CURRENCY_SYMBOL}}": SYMBOLS.get(currency_code, currency_code),
+        "{{CURRENCY_CODE_JSON}}": script_json(code),
+        "{{CURRENCY_SYMBOL_JSON}}": script_json(SYMBOL),
         "{{ANNUAL_TARGET_VALUE}}": "%.2f" % annual_target,
         "{{HAS_TARGET}}": "true" if annual_target else "false",
         "{{TARGET_HINT}}": ("the Settings sheet" if data_source(costs)[0] == "Excel import"

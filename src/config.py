@@ -5,6 +5,7 @@ dependencies.  A private ``costs.yml`` remains supported for existing stores whe
 PyYAML is installed locally.
 """
 
+import datetime
 import json
 import math
 import os
@@ -17,6 +18,13 @@ DEFAULT_COSTS = os.path.join(BASE, "costs.example.json")
 
 class ConfigError(Exception):
     """The cost model cannot safely be used to calculate a margin."""
+
+
+def currency_code(costs):
+    value = (costs.get("meta") or {}).get("moneda", "EUR")
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z]{3}", value):
+        raise ConfigError("Currency must be a three-letter currency code, such as EUR or USD.")
+    return value.upper()
 
 
 NUMERIC_FIELDS = frozenset({
@@ -84,7 +92,8 @@ def variable_costs(costs):
 
     Product margin stays the default reading. A store that declares this block also
     gets a second figure that deducts fulfilment, payment fees and advertising and
-    adds the shipping its customers paid. Absent fields count as zero.
+    adds the shipping its customers paid. Missing inputs are excluded from the
+    subtotal and identified separately by variable_cost_gaps.
     """
     block = (costs or {}).get("costes_variables")
     if not block:
@@ -96,6 +105,47 @@ def variable_costs(costs):
         "publicidad": {str(month): float(amount)
                        for month, amount in (block.get("publicidad") or {}).items()},
     }
+
+
+def variable_cost_gaps(costs, months):
+    block = costs.get("costes_variables") or {}
+    labels = {"logistica_por_pedido": "fulfilment cost", "comision_pago_pct": "payment fee rate",
+              "comision_pago_fija": "fixed payment fee"}
+    missing = [label for field, label in labels.items() if block.get(field) in (None, "")]
+    advertising = block.get("publicidad") or {}
+    absent_months = sorted(month for month in months if advertising.get(month) in (None, ""))
+    if absent_months:
+        missing.append("advertising for " + ", ".join(absent_months))
+    return missing
+
+
+def product_cost_basis(costs):
+    if (costs.get("meta") or {}).get("pricing_model") == "scenario":
+        return "Scenario: current catalogue costs"
+    if any(not product.get("costes") for product in costs["productos"].values()):
+        return "Actual: includes undated costs applied across history"
+    return "Actual: dated costs effective on the sale date"
+
+
+def validate_cost_history(product, path):
+    history = product.get("costes")
+    if history is None:
+        return
+    if not isinstance(history, list) or not history:
+        raise ConfigError("%s: cost history must be a non-empty list." % path)
+    seen = set()
+    for entry in history:
+        try:
+            date = entry["desde"]
+            if datetime.date.fromisoformat(date).isoformat() != date or date in seen:
+                raise ValueError
+            value = float(entry["coste_unitario"])
+            if not math.isfinite(value) or value < 0:
+                raise ValueError
+        except (KeyError, TypeError, ValueError, OverflowError):
+            raise ConfigError("%s: each cost history entry needs a unique YYYY-MM-DD start date "
+                              "and a finite, non-negative unit cost." % path) from None
+        seen.add(date)
 
 
 def validate_variable_costs(costs, path):
@@ -164,6 +214,7 @@ def validate_costs(costs, path="cost model"):
     validate_finite_values(costs)
     if not isinstance(costs, dict):
         raise ConfigError("%s must contain an object." % path)
+    currency_code(costs)
     required = ("productos",)  # a sales target is optional
     missing = [key for key in required if key not in costs]
     if missing:
@@ -180,6 +231,7 @@ def validate_costs(costs, path="cost model"):
         except (TypeError, ValueError):
             raise ConfigError("%s: costs and prices for %s must be non-negative numbers."
                               % (path, sku))
+        validate_cost_history(product, "%s: product %s" % (path, sku))
     objective = costs.get("objetivo")
     if objective is not None and (not isinstance(objective, dict)
                                   or not all(k in objective for k in ("unidades", "desde", "hasta"))):

@@ -12,6 +12,8 @@ import re
 import xml.etree.ElementTree as ET
 import zipfile
 
+from config import ConfigError, currency_code, validate_cost_history
+
 
 MAIN_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 REL_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
@@ -187,22 +189,26 @@ def variable_cost_inputs(settings, settings_rows):
         raise ExcelInputError("Settings %s must be zero or more." % SHIPPING_SETTING)
 
     advertising = {}
+    seen_months = set()
     if any(all(header in row for header in ADVERTISING_HEADERS) for row in settings_rows):
         for offset, row in enumerate(table(settings_rows, "Settings", ADVERTISING_HEADERS), start=1):
             month = str(row["Month (YYYY-MM)"]).strip()
             if not re.match(r"^\d{4}-(0[1-9]|1[0-2])$", month):
                 raise ExcelInputError("Settings advertising row %d: Month must use YYYY-MM." % offset)
-            if month in advertising:
+            if month in seen_months:
                 raise ExcelInputError("Settings advertising row %d: %s is listed twice." % (offset, month))
+            seen_months.add(month)
             spend = number(row["Advertising spend ex VAT"], "Settings advertising", offset,
-                           "Advertising spend ex VAT", allow_blank=True) or 0.0
+                           "Advertising spend ex VAT", allow_blank=True)
+            if spend is None:
+                continue
             if spend < 0:
                 raise ExcelInputError("Settings advertising row %d: spend cannot be negative." % offset)
             advertising[month] = spend
     if advertising:
         model["publicidad"] = advertising
     if shipping:
-        model.setdefault("logistica_por_pedido", 0.0)
+        model.setdefault("publicidad", {})
     return (model or None), (shipping or 0.0)
 
 
@@ -294,6 +300,25 @@ def build_inputs(path):
             "fuente": str(row["Source"]).strip(),
         })
 
+    cost_headers = ["SKU", "Cost effective from", "Unit cost ex VAT", "Cost evidence"]
+    if any(all(header in row for header in cost_headers) for row in sheets[pricing_sheet]):
+        for offset, row in enumerate(table(sheets[pricing_sheet], pricing_sheet, cost_headers), start=1):
+            sku = str(row["SKU"]).strip()
+            if sku not in products:
+                raise ExcelInputError("Cost history row %d: SKU does not exist in Catalogue." % offset)
+            history = products[sku].setdefault("costes", [])
+            date = str(row["Cost effective from"]).strip()
+            if history and date <= history[-1]["desde"]:
+                raise ExcelInputError("Cost history: dates for each SKU must be unique and oldest first.")
+            history.append({"desde": date,
+                            "coste_unitario": number(row["Unit cost ex VAT"], "Cost history", offset,
+                                                     "Unit cost ex VAT"),
+                            "fuente": str(row["Cost evidence"]).strip()})
+            try:
+                validate_cost_history(products[sku], "Cost history")
+            except ConfigError as error:
+                raise ExcelInputError(str(error)) from None
+
     bundles = {}
     for offset, row in enumerate(bundle_rows, start=4):
         sku = str(row["SKU"] if simplified else row["Bundle SKU"]).strip()
@@ -381,6 +406,10 @@ def build_inputs(path):
     }
     if variable_model is not None:
         costs["costes_variables"] = variable_model
+    try:
+        costs["meta"]["moneda"] = currency_code(costs)
+    except ConfigError as error:
+        raise ExcelInputError(str(error)) from None
     return costs, {"extraido": "from editable Excel workbook", "tienda": settings["Store domain"], "pedidos": orders}
 
 

@@ -53,6 +53,14 @@ PRICE_HISTORY = [
     ("SKU-F", "2025-08-01", 34, "Launch price"),
 ]
 
+COST_HISTORY = [
+    ("SKU-A", "2025-08-01", 11.80, "Illustrative supplier cost"),
+    ("SKU-A", "2026-07-01", 12.80, "Illustrative supplier increase"),
+    ("SKU-B", "2025-08-01", 3.90, "Illustrative supplier cost"),
+    ("SKU-C", "2025-08-01", 5.40, "Illustrative landed cost"),
+    ("SKU-F", "2025-08-01", 6.70, "Illustrative supplier cost"),
+]
+
 # sku, name, price incl VAT, contents, declared solo total, declared saving, note
 BUNDLES = [
     ("SKU-D", "Daily Duo", 79, "SKU-A:1|SKU-B:1", 88.90, 9.90, "Core bundle"),
@@ -111,6 +119,50 @@ def price_on(sku, day):
         if bundle[0] == sku:
             return bundle[2]
     raise KeyError(sku)
+
+
+def catalogue_lookup(sku_reference, column):
+    return "INDEX('Catalogue'!$%s$3:$%s$100,MATCH(%s,'Catalogue'!$B$3:$B$100,0))" % (
+        column, column, sku_reference)
+
+
+def dated_cost_formula(sku_reference, date_reference, cost_start):
+    codes = "'Pricing & promotions'!$A$%d:$A$2000" % cost_start
+    dates = "'Pricing & promotions'!$B$%d:$B$2000" % cost_start
+    values = "'Pricing & promotions'!$C$%d:$C$2000" % cost_start
+    return ('IF(OR(\'Settings\'!$B$11="Scenario",COUNTIF({codes},{sku})=0),{current},'
+            'IFERROR(LOOKUP(2,1/(({codes}={sku})*({dates}<={date})),{values}),NA()))').format(
+                codes=codes, dates=dates, values=values, sku=sku_reference, date=date_reference,
+                current=catalogue_lookup(sku_reference, "D"))
+
+
+def bundle_total_formula(contents_reference, column="D", date_reference=None, cost_start=None):
+    def lookup(target):
+        return "_xlfn.XLOOKUP(components,'Catalogue'!$B$3:$B$100,'Catalogue'!$%s$3:$%s$100,NA())" % (target, target)
+    value = lookup(column)
+    if date_reference:
+        codes = "'Pricing & promotions'!$A$%d:$A$2000" % cost_start
+        dates = "'Pricing & promotions'!$B$%d:$B$2000" % cost_start
+        values = "'Pricing & promotions'!$C$%d:$C$2000" % cost_start
+        def history(target):
+            return '_xlfn.XLOOKUP(components&"|"&{date},{codes}&"|"&{dates},{target},NA(),-1)'.format(
+                date=date_reference, codes=codes, dates=dates, target=target)
+        value = ('IF(\'Settings\'!$B$11="Scenario",{current},IF(COUNTIF({codes},components)=0,'
+                 '{current},IF({matched}=components,{history},NA())))').format(
+                     current=value, codes=codes, matched=history(codes), history=history(values))
+    return ('_xlfn.LET(parts,_xlfn.TEXTSPLIT({contents},"|"),'
+            'components,TRIM(LEFT(parts,FIND(":",parts)-1)),'
+            'quantities,VALUE(MID(parts,FIND(":",parts)+1,99)),'
+            'SUMPRODUCT(IF({kind}="Product",quantities*{value},NA())))').format(
+                contents=contents_reference, value=value, kind=lookup("A"))
+
+
+def order_cost_formula(row, cost_start):
+    sku = "C%d" % row
+    date = "B%d" % row
+    return 'ROUND(IF(%s="Product",%s,%s)*G%d,2)' % (
+        catalogue_lookup(sku, "A"), dated_cost_formula(sku, date, cost_start),
+        bundle_total_formula(catalogue_lookup(sku, "H"), date_reference=date, cost_start=cost_start), row)
 
 
 def current_price(sku):
@@ -296,10 +348,11 @@ class Formula:
     input. The cached value lets the Python dashboard also read a newly generated
     starter workbook before a spreadsheet application has opened it once.
     """
-    def __init__(self, expression, cached, style=None):
+    def __init__(self, expression, cached, style=None, array=False):
         self.expression = expression
         self.cached = cached
         self.style = style
+        self.array = array
 
 
 class Styled:
@@ -321,8 +374,9 @@ def cell(reference, value, style=0):
         # such as LibreOffice often recover without it, but Excel may refuse the
         # workbook as repaired/corrupt when formula results include labels.
         result_type = ' t="str"' if isinstance(value.cached, str) else ''
-        return '<c r="%s" s="%d"%s><f>%s</f><v>%s</v></c>' % (
-            reference, style, result_type, escape(value.expression.lstrip("=")),
+        formula_type = ' t="array" ref="%s"' % reference if value.array else ''
+        return '<c r="%s" s="%d"%s><f%s>%s</f><v>%s</v></c>' % (
+            reference, style, result_type, formula_type, escape(value.expression.lstrip("=")),
             escape(value.cached))
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return '<c r="%s" s="%d"><v>%s</v></c>' % (reference, style, value)
@@ -573,7 +627,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
         ["Dashboard", "Live, formula-driven Excel view, including what remains after variable costs. The interactive dashboard is online."],
         ["Settings", "Store identity, VAT rate, targets, pricing mode and optional fulfilment, payment and advertising costs."],
         ["Catalogue", "Products and bundles together. Use Type to distinguish them."],
-        ["Pricing & promotions", "Price history and the discount rules that drive calculated order discounts."],
+        ["Pricing & promotions", "Promotion rules, price history and dated costs. Actual mode uses cost history; Scenario uses Catalogue costs."],
         ["Pricing planner", "Live Excel price, margin and bundle-saving checks. It updates when yellow price inputs change."],
         ["Orders", "Blue price and discount cells follow Catalogue and promotion inputs in Scenario mode."],
         [""],
@@ -608,7 +662,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
         settings.append([month, Styled(spend, CURRENCY_INPUT)])
     settings.extend([[""], ["Leave the four cost rows and this table blank to see product margin only. "
                             "Per-order costs are shared across lines by value; advertising by each "
-                            "month's net revenue."]])
+                            "month's net revenue. Blank means unknown; enter 0 only for a known zero cost."]])
 
     catalogue = [["Catalogue"],
                  ["Type", "SKU", "Name", "Unit cost ex VAT", "Web price incl VAT",
@@ -616,13 +670,13 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
                   "Claimed saving", "Confirmed (TRUE/FALSE)", "Cost source", "Notes", "Bundle discount %"]]
     for sku, name, cost, price, batch, stock, note in PRODUCTS:
         catalogue.append(["Product", sku, name, Styled(cost, CURRENCY_INPUT), Styled(price, CURRENCY_INPUT), batch, stock, "", "", "", "",
-                          "Supplier invoice", note, ""])
+                          "Illustrative supplier invoice", note, ""])
     for index, (sku, name, price, contents, solo, saving, note) in enumerate(BUNDLES, start=7):
         discount_pct = round(saving / solo, 6)
         catalogue.append(["Bundle", sku, name, "",
                           Formula("ROUND(I%d*(1-N%d),2)" % (index, index), price, CURRENCY_CALCULATED),
                           "", "", contents,
-                          Formula({"SKU-D": "E3+E4", "SKU-E": "E3+E5", "SKU-G": "E4+E5+E6"}[sku], solo, CURRENCY_CALCULATED),
+                          Formula(bundle_total_formula("H%d" % index, "E"), solo, CURRENCY_CALCULATED, array=True),
                           Formula("ROUND(I%d-E%d,2)" % (index, index), saving, CURRENCY_CALCULATED),
                           "TRUE", "", note, Styled(discount_pct, PERCENT_INPUT)])
 
@@ -644,7 +698,11 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
                     ["SKU", "Start date", "Price incl VAT", "Source"]])
     for row in PRICE_HISTORY:
         pricing.append(list(row))
-
+    pricing.extend([[""], ["Cost history | Actual mode; dates per SKU oldest first"],
+                    ["SKU", "Cost effective from", "Unit cost ex VAT", "Cost evidence"]])
+    cost_start = len(pricing) + 1
+    for sku, start, amount, evidence in COST_HISTORY:
+        pricing.append([sku, start, Styled(amount, CURRENCY_INPUT), evidence])
     # Editable model: in Scenario mode, calculated order values follow current
     # Catalogue prices and live promotion rates. The adjacent yellow recorded
     # values support an Actual mode for a user importing fixed historical orders.
@@ -654,7 +712,8 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
                    ["Order ID", "Order date", "SKU", "Product title", "Unit price incl VAT",
                     "Recorded unit price incl VAT", "Quantity", "Discount allocated incl VAT",
                     "Revenue ex VAT", "Recorded discount incl VAT", "Taxable (TRUE/FALSE)",
-                    "Discount code", "Gross line sales", "First line of order", "Payment fee per order"]]
+                    "Discount code", "Gross line sales", "First line of order", "Payment fee per order",
+                    "Product cost ex VAT"]]
     order_end = len(orders) + 2
     order_totals = {}
     for order in orders:
@@ -690,6 +749,8 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
             Formula('ROUND(E%d*G%d-H%d,2)' % (row_index,row_index,row_index), scenario_amount(order), CURRENCY_CALCULATED),
             Formula(first_formula, int(first), CALCULATED),
             Formula(fee_formula, fee, CURRENCY_CALCULATED),
+            Formula(order_cost_formula(row_index, cost_start),
+                    round(sku_costs[sku] * quantity, 2), CURRENCY_CALCULATED, array=True),
         ])
 
     order_end = len(orders) + 2
@@ -703,13 +764,6 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
     lines_formula = "COUNTA(%s)" % order_range
     catalogue_rows = {sku: row for row, (sku, *_rest) in enumerate(PRODUCTS, start=3)}
     catalogue_rows.update({sku: row for row, (sku, *_rest) in enumerate(BUNDLES, start=7)})
-    cost_formulas = {
-        "SKU-A": "'Catalogue'!D3", "SKU-B": "'Catalogue'!D4",
-        "SKU-C": "'Catalogue'!D5", "SKU-F": "'Catalogue'!D6",
-        "SKU-D": "'Catalogue'!D3+'Catalogue'!D4",
-        "SKU-E": "'Catalogue'!D3+'Catalogue'!D5",
-        "SKU-G": "'Catalogue'!D4+'Catalogue'!D5+'Catalogue'!D6",
-    }
     dashboard = [
         ["%s | Excel dashboard" % STORE],
         ["Instant workbook view: yellow Catalogue and promotion edits flow through blue calculated Orders values."],
@@ -721,7 +775,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
         [""],
         ["Live commercial picture", "Value"],
         ["Gross sales", Formula(gross_formula, round(gross, 2), PRIMARY_CURRENCY)],
-        ["Contribution margin", Formula("SUM(E27:E33)", total_margin, CURRENCY_CALCULATED)],
+        ["Product margin", Formula("SUM(E27:E33)", total_margin, CURRENCY_CALCULATED)],
         ["Order lines", Formula(lines_formula, len(orders), PRIMARY)],
         ["Units sold", Formula("SUM(%s)" % quantity_range, units, PRIMARY)],
         [""],
@@ -739,7 +793,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
                  "€%s remains to reach the benchmark." % "{:,.0f}".format(target_remaining), CALCULATED)],
         [""],
         ["Sales by SKU"],
-        ["SKU", "Product", "Scenario gross sales", "Units", "Contribution margin", "Margin %"],
+        ["SKU", "Product", "Sales incl. VAT", "Units", "Product margin", "Margin %"],
     ]
     # Variable costs sit beside the commercial picture in D9:E17, clear of the
     # charts (H onwards), so no existing row or chart reference moves. Cells follow
@@ -756,7 +810,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
     net_total = sum(round(scenario_amount(order) / (1 + VAT / 100), 2) for order in orders)
     variable_block = {
         9: ["After variable costs", "Value"],
-        10: [Styled("Contribution margin", CALCULATED), Formula("B11", total_margin, CURRENCY_CALCULATED)],
+        10: [Styled("Product margin", CALCULATED), Formula("B11", total_margin, CURRENCY_CALCULATED)],
         11: [Styled("+ Shipping charged ex VAT", CALCULATED),
              Formula("ROUND(ROUND('Settings'!B13/(1+'Settings'!B6/100),2)*%s,2)" % orders_formula,
                      shipping_ex_vat, CURRENCY_CALCULATED)],
@@ -771,7 +825,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
         16: [Styled("Share of net sales", CALCULATED),
              Formula("IF(SUM(%s)=0,0,E15/SUM(%s))" % (net_revenue_range, net_revenue_range),
                      round(after / net_total, 4) if net_total else 0, PERCENT_CALCULATED)],
-        17: [Styled("Costs come from Settings. Not net profit.", NOTE), ""],
+        17: [Styled("Declared-cost subtotal. Blank costs excluded; not net profit.", NOTE), ""],
     }
     for excel_row, cells in variable_block.items():
         row = dashboard[excel_row - 1]
@@ -788,7 +842,8 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
             Formula("'Catalogue'!C%d" % row, item["name"], CALCULATED),
             Formula(sales_formula, item["gross"], CURRENCY_CALCULATED),
             Formula(units_formula, item["units"], CALCULATED),
-            Formula("ROUND(SUMIF(%s,A%d,%s)-(%s)*D%d,2)" % (sku_range, index, net_revenue_range, cost_formulas[sku], index), item["margin"], CURRENCY_CALCULATED),
+            Formula("ROUND(SUMIF(%s,A%d,%s)-SUMIF(%s,A%d,'Orders'!$P$3:$P$%d),2)" %
+                    (sku_range, index, net_revenue_range, sku_range, index, order_end), item["margin"], CURRENCY_CALCULATED),
             Formula("IF(C%d=0,0,E%d/SUMIF(%s,A%d,%s))" % (index, index, sku_range, index, net_revenue_range), item["margin_pct"] / 100, PERCENT_CALCULATED),
         ])
     dashboard.extend([
@@ -800,7 +855,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
 
     planner = [
         ["Pricing planner | live Excel checks"],
-        ["Change only yellow cells in Catalogue. This sheet updates immediately in Excel, Numbers or LibreOffice."],
+        ["Edit yellow Catalogue cells. Native formulas require Excel 365 or Excel 2024; the Python dashboard works without Excel."],
         [""],
         ["Product price health"],
         ["SKU", "Product", "Unit cost ex VAT", "Web price incl VAT", "Gross profit ex VAT", "Gross margin %", "Status"],
@@ -824,11 +879,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
             "SKU-E": PRODUCTS[0][2] + PRODUCTS[2][2],
             "SKU-G": PRODUCTS[1][2] + PRODUCTS[2][2] + PRODUCTS[3][2],
         }[sku]
-        component_cost_formula = {
-            "SKU-D": "'Catalogue'!D3+'Catalogue'!D4",
-            "SKU-E": "'Catalogue'!D3+'Catalogue'!D5",
-            "SKU-G": "'Catalogue'!D4+'Catalogue'!D5+'Catalogue'!D6",
-        }[sku]
+        component_cost_formula = bundle_total_formula("'Catalogue'!H%d" % row)
         planner_row = row + 6
         planner.append([Formula("'Catalogue'!B%d" % row, sku, CALCULATED),
                         Formula("'Catalogue'!C%d" % row, name, CALCULATED),
@@ -836,7 +887,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
                         Formula("'Catalogue'!I%d" % row, solo, CURRENCY_CALCULATED),
                         Formula("'Catalogue'!J%d" % row, saving, CURRENCY_CALCULATED),
                         Formula("'Catalogue'!N%d" % row, round(saving / solo, 4), PERCENT_CALCULATED),
-                        Formula(component_cost_formula, component_cost, CURRENCY_CALCULATED),
+                        Formula(component_cost_formula, component_cost, CURRENCY_CALCULATED, array=True),
                         Formula("ROUND(C%d/(1+'Settings'!B6/100)-G%d,2)" % (planner_row, planner_row),
                                 round(price / 1.21 - component_cost, 2), CURRENCY_CALCULATED),
                         Formula('IF(C%d<=0,"FIX: price must be positive",IF(H%d<0,"Below cost",IF(C%d>=D%d,"No customer saving","Healthy")))' % (planner_row, planner_row, planner_row, planner_row), "Healthy", CALCULATED)])
@@ -864,6 +915,12 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
     def pricing_styling(row_index):
         # Two clearly separated tables: live promotion inputs first, historical
         # reference second. Formula cells keep their blue calculated style.
+        if row_index == cost_start - 3:
+            return TITLE
+        if row_index == cost_start - 2:
+            return HEADER
+        if row_index >= cost_start - 1:
+            return INPUT
         if row_index in (0, 3, 9):
             return TITLE
         if row_index in (4, 10):
@@ -913,7 +970,7 @@ def build_workbook(path=OUTPUT, seed=11, as_of=None):
         ("Catalogue", sheet_xml(catalogue, styling(2), [12, 10, 24, 16, 18, 14, 14, 32, 18, 16, 24, 26, 28, 18]),),
         ("Pricing & promotions", sheet_xml(pricing, pricing_styling, [18, 16, 16, 24, 16]),),
         ("Pricing planner", sheet_xml(planner, planner_styling, [12, 24, 20, 18, 20, 16, 20, 20, 28]),),
-        ("Orders", sheet_xml(order_sheet, styling(2), [14, 14, 10, 24, 20, 26, 12, 24, 18, 24, 18, 16, 20, 20, 24]),),
+        ("Orders", sheet_xml(order_sheet, styling(2), [14, 14, 10, 24, 20, 26, 12, 24, 18, 24, 18, 16, 20, 20, 24, 24]),),
     ]
 
     content_types = (

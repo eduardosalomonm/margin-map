@@ -26,6 +26,7 @@ import os
 import sys
 
 from shopify import Client, ShopifyError
+from config import ConfigError, validate_costs
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -66,6 +67,8 @@ def draft_model(shop, variants, today=None):
             "nombre": variant.get("displayName") or variant.get("title") or sku,
             "coste_unitario": round(float(cost), 2),
             "coste_fuente": "Shopify cost per item",
+            "costes": [{"desde": today, "coste_unitario": round(float(cost), 2),
+                        "fuente": "Shopify cost observed on this date; confirm earlier costs manually"}],
             "precio_web": round(float(variant.get("price") or 0), 2),
         }
         if variant.get("inventoryQuantity") is not None:
@@ -100,6 +103,17 @@ def merge_model(existing, drafted, today=None):
             current["stock"] = fresh["stock"]
         current["precio_web"] = fresh["precio_web"]
         if current.get("coste_fuente") == "Shopify cost per item":
+            history = current.setdefault("costes", [])
+            latest = max(history, key=lambda entry: entry["desde"]) if history else None
+            if latest is None or float(latest["coste_unitario"]) != fresh["coste_unitario"]:
+                if latest is not None and latest["desde"] > today:
+                    raise ValueError("Cost history contains a future entry; review it before refreshing Shopify costs.")
+                entry = {"desde": today, "coste_unitario": fresh["coste_unitario"],
+                         "fuente": "Shopify cost observed on this date"}
+                if latest is not None and latest["desde"] == today:
+                    latest.update(entry)
+                else:
+                    history.append(entry)
             current["coste_unitario"] = fresh["coste_unitario"]
         refreshed += 1
     existing.setdefault("meta", {})["stock_actualizado"] = today
@@ -164,10 +178,15 @@ def update(output):
     except ShopifyError as exc:
         print("Catalogue refresh skipped: %s" % exc)
         return 1
-    with open(output, encoding="utf-8") as handle:
-        existing = json.load(handle)
-    drafted, missing_cost, _missing_sku = draft_model(shop, variants)
-    model, added, refreshed = merge_model(existing, drafted)
+    try:
+        with open(output, encoding="utf-8") as handle:
+            existing = json.load(handle)
+        validate_costs(existing)
+        drafted, missing_cost, _missing_sku = draft_model(shop, variants)
+        model, added, refreshed = merge_model(existing, drafted)
+    except (ConfigError, ValueError) as exc:
+        print("Catalogue refresh skipped: %s" % exc)
+        return 1
     temporary = output + ".tmp"
     with open(temporary, "w", encoding="utf-8") as handle:
         json.dump(model, handle, ensure_ascii=False, indent=2)

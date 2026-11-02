@@ -33,7 +33,7 @@ store's to analyse your own margins; no Shopify credentials are needed.
    | `Dashboard` | Formula-driven Excel view. It updates immediately and links to the interactive online dashboard. |
    | `Settings` | Store name, VAT, target window, the `Scenario` / `Actual` pricing mode and optional fulfilment, payment and advertising costs |
    | `Catalogue` | Products and bundles together, with costs, current prices and stock; edit yellow values |
-   | `Pricing & promotions` | Live promotion rules first, then price-history reference; edit yellow values |
+   | `Pricing & promotions` | Promotion rules, price history and dated product costs; edit yellow values |
    | `Pricing planner` | Live Excel price, margin and bundle checks; blue cells calculate automatically |
    | `Orders` | One sold SKU per row. Blue unit-price and discount cells automatically react to the catalogue and promotion inputs in `Scenario` mode. |
 
@@ -82,12 +82,59 @@ then adjust selling price, volume or unit product cost. The baseline always
 follows your current filters. **Reset assumptions** restores all three changes
 to zero; changing filters keeps your assumptions so you can compare segments.
 
-The final row shows product margin, not profit after variable costs. The required
-volume holds product mix, discount rates and tax treatment constant. It does not
-predict how customers will respond to a price change. Experiments are not saved
-to Excel or included in the existing CSV and PDF downloads.
+The final row shows the result after declared variable costs, or product margin
+if no variable-cost model exists. Missing inputs produce a marked known-cost
+subtotal, never a claim of full contribution or net profit. The required order
+growth preserves that baseline while holding basket mix, discount rates and VAT
+constant. Shipping, fulfilment and fixed fees scale with orders; percentage fees
+also follow price. Advertising stays fixed, an assumption rather than proof of
+customer acquisition. Experiments do not change Excel, CSV exports or the PDF.
+
+In the sample store, **Explore the decision** opens an illustrative promotion case.
+Its two preset buttons reset filters to the full imported period. Manual edits or
+filter changes keep your scenario assumptions but no longer select a preset unless
+they match it. See [the case study](CASE_STUDY.md) for the origin and evidence limits.
+
+### Historical product costs
+
+In **Actual** mode, dated product costs apply from their effective date until the
+next entry. Bundles use each component's effective cost. Sales before a product's
+first cost entry block the report rather than guessing a cost.
+
+In Excel, use the `SKU | Cost effective from | Unit cost ex VAT | Cost evidence`
+table in **Pricing & promotions**. Enter ISO dates (`YYYY-MM-DD`), oldest first
+for each SKU, with one entry per SKU/date. A known zero cost is valid. Keep this
+table last, within row 2000, for the native workbook formulas. The importer also
+accepts old workbooks without this table, warning that undated Catalogue costs
+apply across history. **Scenario** mode intentionally uses current Catalogue
+costs and leaves dated entries intact.
+
+The JSON equivalent inside a product is:
+
+```json
+"costes": [
+  {"desde": "2025-10-01", "coste_unitario": 11.80, "fuente": "Supplier invoice"},
+  {"desde": "2026-07-01", "coste_unitario": 12.80, "fuente": "New supplier invoice"}
+]
+```
+
+These values are examples, not recommendations. Shopify's current *Cost per item*
+is observed today; it cannot establish a past cost. Bootstrap and refresh record
+new observations without rewriting earlier dates. Supply evidence for earlier
+sales yourself. An old undated Shopify-owned model becomes dated from its first
+refresh, so historical coverage may need to be completed before the next report.
+Set a different `coste_fuente` when managing costs manually to keep refresh from
+updating those costs.
 
 ### Catalogue
+
+Native preview formulas use `LET`, `XLOOKUP` and `TEXTSPLIT`, available in
+Excel 365 / Excel 2024. Recalculation is tested with LibreOffice 26.8.2;
+native Excel recalculation has not been verified in this release. The Python dashboard
+recalculates from inputs without a spreadsheet application. Native lookups cover
+Catalogue rows 3–100 and cost history through row 2000; extend summary rows and formula ranges if enlarging the
+template beyond its sample layout. Renaming SKUs and changing bundle components
+within those ranges update costs and prices without editing formula code.
 
 - Use `Type` to mark every row as either `Product` or `Bundle`.
 - `SKU` is required and must be unique for products; bundle SKUs are also unique.
@@ -152,6 +199,8 @@ not duplicate the fixed fee. Revenue excluding VAT respects each line's
 
 Fill these in on `Settings` to see what remains after the costs of selling, not
 only after product cost. Leave them all blank to keep the product-margin view.
+If you declare some but omit others, the report shows an incomplete known-cost
+subtotal. A blank advertising month is unknown; enter `0` for confirmed zero spend.
 
 | Setting | Enter |
 |---|---|
@@ -173,11 +222,11 @@ listed under **Data controls**, because it has nothing to be allocated to.
 | Metric | Read it as |
 |---|---|
 | Gross sales | What customers paid, after discounts, including VAT. |
-| Contribution margin | Sales ex VAT minus product cost. What the trading actually leaves. |
+| Product margin | Sales ex VAT minus product cost, before the costs of selling. |
 | Discount rate | Share of list price given away, plus how many orders used a code. |
 | Units and lines per order | Basket size. A store at 1.00 has no attach at all. |
 | Margin per order | What one order is worth after cost and VAT. |
-| After variable costs | Contribution margin plus shipping charged, minus fulfilment, payment fees and advertising. Shown only when those costs are declared; still not net profit. |
+| After variable costs | Product margin plus shipping charged, minus declared fulfilment, fees and advertising. Incomplete inputs yield a known-cost subtotal; neither is net profit. |
 | Break-even discount | The deepest discount on today's price that still covers the product's cost, VAT and payment fee. |
 | Gross-sales benchmark | Complete imported-period sales against the declared benchmark; filters do not redefine it. |
 | Unit run rate vs target | Units a week now, against the pace the target window needs. |

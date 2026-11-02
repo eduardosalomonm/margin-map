@@ -1,6 +1,8 @@
 # Margin Map
 
-**Margin analytics for Shopify stores: what each product, bundle and discount code really earns.**
+**Understand what remains after costs before changing prices or promotions.**
+
+[![Verification](https://github.com/eduardosalomonm/margin-map/actions/workflows/verify.yml/badge.svg)](https://github.com/eduardosalomonm/margin-map/actions/workflows/verify.yml)
 
 Margin Map connects to a Shopify store through the Admin API with read-only
 access, combines its orders with the store's product costs, and produces an
@@ -8,16 +10,27 @@ interactive margin dashboard and a one-page executive PDF. Stores on other
 platforms (WooCommerce, PrestaShop, marketplaces) get the same analysis by
 pasting an order export into the included Excel template.
 
-**[Open the dashboard →](https://marginmap.eilvi.com/)** ·
+**[Try the decision →](https://marginmap.eilvi.com/#decision-case)** ·
+**[Read the case →](CASE_STUDY.md)** ·
 **[Quick start →](TLDR.README/README.md)** ·
 **[User guide →](USER_GUIDE.md)**
 
 ![Margin Map dashboard for the Luma Vale sample store](assets/dashboard-overview.png)
 
-The online dashboard shows **Luma Vale**, a sample store with 12 months of
-illustrative orders, so the analysis can be explored before connecting real data.
+The public example uses **Luma Vale**, a synthetic store. Follow the guided offer
+comparison online, or open `docs/index.html` locally and choose **Explore the decision**.
 
-![Thirty-second tour: recommended actions, the cost ladder, product economics, promotions and the Scenario lab](assets/demo.gif)
+## A decision, not just a dashboard
+
+Would you reduce prices by 20% to get 30% more orders? In the illustrative case,
+sales rise 4%, but the result after declared variable costs falls. The demo compares
+that offer with a smaller discount, shows the order-growth threshold needed to
+preserve margin, and exposes the assumptions behind both outcomes.
+
+The project grew from using dashboards to understand my own business's numbers.
+The public case does **not** claim a historical campaign, measured financial uplift
+or a verified real-store Shopify pilot. [The case study](CASE_STUDY.md) separates
+that origin, the illustrative decision and the engineering evidence.
 
 ## What it answers
 
@@ -31,8 +44,9 @@ illustrative orders, so the analysis can be explored before connecting real data
 
 ![Scenario lab comparing a price change with the selected sales baseline](assets/scenario-lab.png)
 
-The Scenario lab is a sensitivity model with explicit assumptions, not a demand
-forecast. It runs in the browser and leaves the underlying data unchanged.
+The Scenario lab scales order-related costs with volume and percentage fees with
+price; advertising stays fixed. It is sensitivity analysis, not a demand forecast
+or causal attribution. It runs in the browser and leaves the source data unchanged.
 
 ## Connect a Shopify store
 
@@ -41,8 +55,8 @@ forecast. It runs in the browser and leaves the underlying data unchanged.
    `read_orders`, `read_products`, `read_inventory` (product costs and stock) and
    `read_all_orders` (orders older than 60 days). Copy `.env.example` to `.env` and
    add the `myshopify.com` domain, client ID and client secret. Margin Map exchanges
-   them for a short-lived token on every run; credentials never leave your computer
-   and are ignored by Git.
+   them directly with Shopify for a short-lived token on every run. Credentials
+   stay out of reports, source control and the public demo.
 2. **Draft the cost model from Shopify.** This reads each variant's price, stock
    and *Cost per item* and writes `costs.private.json`. Variants without a cost are
    listed and left out, so their sales block publication until a cost is declared:
@@ -51,6 +65,11 @@ forecast. It runs in the browser and leaves the underlying data unchanged.
    python3 src/check_access.py
    python3 src/bootstrap_costs.py
    ```
+
+   Shopify exposes the current cost, not its history. The draft records it from
+   today's observation date. Supply earlier dated costs in `productos[SKU].costes`
+   before importing older sales; uncovered dates block the report. See
+   [historical costs](USER_GUIDE.md#historical-product-costs).
 
    Review the VAT rate, declare bundles and, optionally, variable costs (amounts
    ex VAT, advertising by month; shipping charged is read from each order):
@@ -100,10 +119,15 @@ the sample orders, catalogue and settings with the store's own, save, then
 double-click `Run dashboard.command` (macOS) or `Run dashboard.bat` (Windows). The
 dashboard and PDF open in the browser. Edit only yellow cells; blue cells calculate.
 
-The workbook starts on a formula-driven `Dashboard` sheet that updates as soon as
-a cost or price changes. In `Scenario` mode, catalogue prices and promotion rates
+The workbook starts on a formula-driven `Dashboard` sheet. Native recalculation
+uses `LET`, `XLOOKUP` and `TEXTSPLIT` (Excel 365 / Excel 2024; recalculation tested
+with LibreOffice 26.8.2, not native Excel); the Python
+dashboard reads the inputs independently and does not require Excel. In `Scenario`
+mode, catalogue prices and promotion rates
 flow through to the orders, which makes price experiments quick; switch `Pricing
-model` to `Actual` for fixed historical orders. See the [user guide](USER_GUIDE.md)
+model` to `Actual` for recorded orders and sale-date product costs. Add historical
+costs in `Pricing & promotions`; dates for each SKU must be oldest first.
+See the [user guide](USER_GUIDE.md)
 for every column.
 
 ## Built-in checks
@@ -126,6 +150,12 @@ shipping customers paid and deducts fulfilment, payment fees and advertising.
 Per-order amounts are allocated to lines by what the customer paid; monthly
 advertising by each line's share of that month's net revenue.
 
+Missing variable inputs are **excluded, not confirmed zero**. The dashboard and
+exports disclose an incomplete known-cost subtotal; enter an explicit `0` for a
+known zero cost. **Data controls → Input assumptions** distinguishes dated costs,
+declared rates, missing inputs and allocated advertising. Refund adjustments stay
+on the original order date rather than their cash-flow date.
+
 Neither figure is net profit: salaries, rent, software and other overhead are
 excluded. Returns and refunds are deducted when the order data records them;
 the Excel template records sales as entered. The **break-even discount**
@@ -144,6 +174,7 @@ COSTS_FILE=costs.example.json SNAPSHOT=data/raw/orders-demo.json python3 src/che
 python3 src/make_demo_workbook.py --as-of 2026-10-22
 python3 src/run_excel_dashboard.py --output docs/index.html
 python3 -m unittest discover -s tests -v
+node --test tests/test_*.js
 ```
 
 Run
@@ -165,6 +196,9 @@ GitHub Actions verifies calculations, privacy boundaries and reproducible builds
 - **No invented costs.** An unknown SKU produces an error, not a guessed margin.
 - **Historical prices.** Actual mode checks orders against the price active on that date;
   Scenario mode deliberately uses the editable current catalogue price.
+- **Historical costs.** Actual mode resolves dated costs for products and bundle
+  components; current Shopify observations do not rewrite earlier entries.
+  Legacy undated models remain supported with a warning, not a claim of history.
 - **Final discount allocations.** Shopify’s allocated line discount is used when
   available, rather than reverse-engineering discounts from totals.
 - **Private data stays private.** Credentials and cost models are local and ignored by Git; the published workbook holds sample data only.

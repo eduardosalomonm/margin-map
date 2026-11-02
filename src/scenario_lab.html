@@ -1,19 +1,26 @@
 <div class="tab-panel" data-panel="scenario" hidden>
+{{DECISION_CASE}}
 <section class="card">
 <div class="section-head"><h2>Test the next commercial move</h2><span>Scenario lab</span></div>
-<p>What happens to product margin if prices, demand or supplier costs change? Start with the selected sales, then adjust one assumption at a time.</p>
+<p>What remains if selling prices, order volume or supplier costs change? Start with the selected sales, then adjust one assumption at a time.</p>
 <div class="scenario-controls">
 <label for="scenario-price">Selling price change (%)<input id="scenario-price" type="number" min="-90" max="200" step="1" value="0"></label>
-<label for="scenario-volume">Sales volume change (%)<input id="scenario-volume" type="number" min="-100" max="500" step="1" value="0"></label>
+<label for="scenario-volume">Order volume change (%)<input id="scenario-volume" type="number" min="-100" max="500" step="1" value="0"></label>
 <label for="scenario-cost">Unit product cost change (%)<input id="scenario-cost" type="number" min="-100" max="500" step="1" value="0"></label>
 <button id="scenario-reset" type="button" class="export">Reset assumptions</button></div>
-<p id="scenario-error" role="status"></p></section>
+<p id="scenario-error" role="status"></p><p id="scenario-coverage" class="detail"></p></section>
+<section class="card"><h2>What this means for the offer</h2><p id="scenario-decision" aria-live="polite"></p></section>
+<section class="card" aria-label="Sales and margin comparison"><div id="scenario-comparison-chart"></div></section>
 <section class="card" aria-labelledby="scenario-result-title"><div class="section-head"><h2 id="scenario-result-title">Baseline vs scenario</h2><span>Current period and filters</span></div><div id="scenario-result" aria-live="polite"></div></section>
-<section class="card"><h2>How to use this result</h2><p id="scenario-decision"></p>
+<section class="card"><h2>Assumptions and limits</h2>
 <details><summary>Assumptions and calculation scope</summary>
-<p>This is a sensitivity calculation, not a demand forecast. Price changes scale sales after discounts; discount rates, VAT treatment and product mix stay fixed. Volume scales quantities and product costs proportionally. Fractional units represent a modelled mix.</p>
-<p>Product margin = sales excluding VAT minus product costs. Shipping, payment fees, advertising, overhead and refunds are excluded from this experiment, even when variable costs are declared elsewhere. Required volume compares product margin with the filtered baseline, before the volume assumption.</p>
+<p>This is a sensitivity calculation, not a demand forecast. Price changes scale sales after discounts; existing discount rates, VAT treatment, basket size and product mix stay fixed. Order volume scales units and product costs proportionally. Fractional units represent a modelled mix.</p>
+<p>When declared, shipping charged, fulfilment and fixed payment fees scale with orders. The percentage payment fee also changes with selling price. Advertising stays at the selected baseline allocation: more orders do not imply a larger advertising budget or prove that the budget can acquire them. Allocated advertising is not product-level attribution.</p>
+<p>Required order growth preserves the baseline result after declared variable costs, or product margin when no variable costs are declared. Missing costs are excluded from a clearly marked subtotal. Overhead and new refund behaviour are not modelled; recorded adjustments stay in the baseline.</p>
 <p>Experiments stay in this page. They do not change the workbook, recorded sales, CSV exports or executive PDF.</p></details></section></div>
 <style>
 .scenario-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:16px;align-items:end;margin:24px 0 8px}.scenario-controls label{font-size:13px;display:grid;gap:8px}.scenario-controls input{width:100%;font:inherit;font-size:20px;color:var(--ink);padding:12px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas)}.scenario-controls input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}#scenario-error{color:var(--bad)}.scenario-comparison{width:100%;border-collapse:collapse}.scenario-comparison th,.scenario-comparison td{padding:16px 10px;text-align:right;border-bottom:1px solid var(--rule)}.scenario-comparison th:first-child,.scenario-comparison td:first-child{text-align:left}.scenario-comparison th{color:var(--muted);font-weight:500}.scenario-comparison .result-row{font-weight:700;background:var(--accent-soft)}#scenario-decision{font-size:18px;line-height:1.6;max-width:65ch}[data-panel="scenario"] p{line-height:1.65;max-width:80ch}[data-panel="scenario"] summary{cursor:pointer;color:var(--accent);padding:12px 0}@media(max-width:650px){.scenario-controls{grid-template-columns:1fr}.scenario-comparison th,.scenario-comparison td{padding:12px 4px;font-size:12px}}
+</style>
+<style>
+.case-entry{display:flex;align-items:center;gap:24px;border-left:4px solid var(--accent)}.case-entry p{max-width:70ch;line-height:1.6;font-size:14px}.case-entry button{flex-shrink:0}.case-buttons{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0}.case-buttons [aria-pressed="true"]{background:var(--accent);color:white}.case-steps{padding-left:22px;line-height:1.65;display:grid;gap:10px}.case-steps li{padding-left:4px}.decision-case h2{font-size:22px;line-height:1.3}.decision-case [tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:5px}#scenario-comparison-chart{display:grid;grid-template-columns:1fr 1fr;gap:28px}.scenario-plot h3{font-size:14px;margin:0 0 20px}.scenario-bar-label{display:flex;justify-content:space-between;gap:8px;font-size:12px;margin:10px 0 6px}.scenario-track{height:16px;background:var(--canvas);border-radius:4px;overflow:hidden}.scenario-track span{display:block;height:100%;background:var(--accent);border-radius:4px}.scenario-track .modelled{background:var(--teal)}.scenario-track .negative{background:var(--bad)}.input-assumptions{overflow-x:auto}.input-assumptions table{min-width:520px}.input-assumptions td,.input-assumptions th{text-align:left;white-space:normal;vertical-align:top;line-height:1.5}.input-assumptions td:last-child{min-width:240px}#scenario-result{overflow-x:auto}@media(max-width:650px){.case-entry{display:block}.case-entry button{margin-top:8px}.decision-case h2{font-size:20px}#scenario-comparison-chart{grid-template-columns:1fr;gap:24px}}
 </style>

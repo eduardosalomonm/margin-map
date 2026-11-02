@@ -11,7 +11,7 @@ import sqlite3
 import sys
 import textwrap
 
-from config import costs_path, data_source, load_costs, variable_costs
+from config import costs_path, currency_code, data_source, load_costs, product_cost_basis, variable_cost_gaps, variable_costs
 
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -123,7 +123,7 @@ def main():
     costs = load_costs(costs_path())
     global CURRENCY
     # Codes, not symbols: the built-in PDF font cannot draw every currency symbol.
-    CURRENCY = str((costs.get("meta") or {}).get("moneda") or "EUR")[:3].upper()
+    CURRENCY = currency_code(costs)
     conn = sqlite3.connect(DB_PATH)
     total = conn.execute("""
         SELECT COALESCE(SUM(ingreso_con_iva), 0), COALESCE(SUM(ingreso_neto), 0),
@@ -147,11 +147,13 @@ def main():
         ORDER BY SUM(descuento_linea) DESC LIMIT 4
     """).fetchall()
     window = conn.execute("SELECT MIN(fecha), MAX(fecha) FROM lineas").fetchone()
+    months = [row[0] for row in conn.execute("SELECT DISTINCT substr(fecha,1,7) FROM lineas")]
     actions = priority_actions(conn, costs)
     conn.close()
 
     gross, net, margin, discount, units, orders = total
     model = variable_costs(costs)
+    incomplete = model is not None and bool(variable_cost_gaps(costs, months))
     shipping, fulfilment, fees, advertising, after = variable
     after_pct = 100 * after / net if net else 0
     brand = costs.get("meta", {}).get("marca", "Store")
@@ -179,6 +181,10 @@ def main():
         decision = "%s product margin on %s of sales incl. VAT; %s remains to the period benchmark." % (pct(margin_pct), currency(gross), currency(max(target - gross, 0)))
     if model is not None and after >= 0 and not decision.startswith(("Product margin is positive", "A ")):
         decision += " After shipping, fulfilment, fees and advertising, %s (%s of net sales) remains." % (currency(after), pct(after_pct))
+    if incomplete:
+        decision = ("Incomplete costs: %s is a known-cost subtotal, not full contribution or net profit. "
+                    "Missing inputs are excluded, not confirmed zero. Review Input assumptions in the dashboard."
+                    % currency(after))
 
     source, sample = data_source(costs)
     stream = []
@@ -191,7 +197,7 @@ def main():
              ("Orders", "{:,.0f}".format(orders)), ("Margin rate", pct(margin_pct))]
     if model is not None:
         cards[2] = ("Margin rate", pct(margin_pct))
-        cards[3] = ("After variable costs", currency(after))
+        cards[3] = ("Known-cost subtotal" if incomplete else "After variable costs", currency(after))
     for index, (label, value) in enumerate(cards):
         x = 42 + index * 132
         stream.extend([rect(x, 668, 120, 55, "F7F7FC"), text(x + 10, 704, label, 8, "77809E"),
@@ -204,7 +210,7 @@ def main():
     stream.extend([
                    text(42, 594, "%s units sold | %s orders | %s discount investment (%s of list price)" % ("{:,.0f}".format(units), "{:,.0f}".format(orders), currency(discount), pct(discount_rate)), 9, "77809E")])
     if model is not None:
-        stream.append(text(42, 578, "Margin %s + shipping %s - fulfilment %s - fees %s - ads %s = %s after variable costs"
+        stream.append(text(42, 578, "Margin %s + shipping %s - fulfilment %s - fees %s - ads %s = %s declared-cost subtotal"
                            % (currency(margin), amount(shipping), amount(fulfilment), amount(fees), amount(advertising), currency(after)), 8, "77809E"))
     stream.extend([text(42, 552, "Top product economics", 14, "252A4A", True), text(42, 532, "PRODUCT", 8, "77809E", True), text(295, 532, "SALES INCL. VAT", 8, "77809E", True), text(415, 532, "PRODUCT MARGIN", 8, "77809E", True), text(515, 532, "MARGIN", 8, "77809E", True)])
     y = 512
@@ -229,13 +235,14 @@ def main():
                  "Excludes shipping, payment fees, acquisition and overhead; returns follow the order data.")
     else:
         scope = ("Scope: product margin, then declared shipping, fulfilment, payment fees and advertising; not net profit.",
-                 "Per-order costs are allocated by order value; returns follow the order data; overhead is excluded.")
+                 "Costs are allocated, not attributed; refunds follow order dates; overhead and missing inputs are excluded.")
     stream.extend([
                    text(42, 92, scope[0], 8, "77809E"),
                    text(42, 78, scope[1], 8, "77809E"),
                    text(42, 64, ("Source: %s, checked by integrity controls before publication.%s"
                                  % (source, " Sample-store figures are illustrative." if sample else "")), 8, "77809E"),
-                   text(42, 48, "Margin Map is decision support, not an accounting or tax reporting system.", 8, "77809E")])
+                   text(42, 48, "Product cost basis: " + product_cost_basis(costs) + ".", 8, "77809E"),
+                   text(42, 34, "Margin Map is decision support, not an accounting or tax reporting system.", 8, "77809E")])
 
     output = os.path.abspath(args.output)
     os.makedirs(os.path.dirname(output), exist_ok=True)

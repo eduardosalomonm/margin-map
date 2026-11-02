@@ -8,12 +8,25 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
-from make_demo_workbook import build_workbook
+from make_demo_workbook import build_workbook, bundle_total_formula, order_cost_formula
 from excel_input import build_inputs, sheet_paths, shared_strings, read_sheet
 from transform import build_rows
 
 
 class WorkbookGeneration(unittest.TestCase):
+    def test_cost_formulas_resolve_editable_catalogue_and_bundle_contents(self):
+        formula = order_cost_formula(3, 24)
+        self.assertNotIn('"SKU-', formula)
+        self.assertIn("MATCH(C3,'Catalogue'!$B$3:$B$100,0)", formula)
+        self.assertIn("'Catalogue'!$H$3:$H$100", formula)
+        self.assertIn("_xlfn.TEXTSPLIT", formula)
+        self.assertIn("LOOKUP(2,", formula)
+        self.assertIn("quantities", formula)
+        self.assertLess(len(formula), 8192)
+        solo = bundle_total_formula("H7", "E")
+        self.assertIn("'Catalogue'!$E$3:$E$100", solo)
+        self.assertIn('TEXTSPLIT(H7,"|")', solo)
+
     def test_fixed_date_rebuild_and_per_order_fee_reconciliation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "demo.xlsx")

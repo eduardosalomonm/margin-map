@@ -4,7 +4,8 @@
 
 Publish the synthetic dashboard, editable workbook and local Python workflow.
 This is not a multi-tenant SaaS or an audited real-store accounting service.
-The old technical repository and URL names remain stable intentionally.
+The public repository is `eduardosalomonm/margin-map`; the dashboard is served
+from `main:docs` at `https://marginmap.eilvi.com/`.
 
 ## Required checks
 
@@ -66,6 +67,19 @@ Verify per-order fees against pipeline totals, change a catalogue price and a
 line's Taxable flag in a disposable copy, and check the affected outputs.
 Open that copy in Excel and confirm both native charts are retained. Never use
 cached values alone as proof that a formula recalculates.
+
+An optional headless recalculation regression uses an installed LibreOffice:
+
+```bash
+MARGIN_MAP_SOFFICE=/path/to/soffice python3 -m unittest discover -s tests -p test_native_workbook.py -v
+```
+
+It checks the sample, renamed SKUs and edited bundle quantities in Scenario and
+Actual modes against the Python pipeline, retaining native charts. Without this
+environment variable the test is explicitly skipped. It removes formula caches
+and forces recalculation; cached values are not accepted as evidence. The workbook
+uses array formulas with `LET`, `XLOOKUP` and `TEXTSPLIT`; older spreadsheet apps
+may not recalculate. Release 1.3.0 was checked with LibreOffice 26.8.2, not native Excel.
 
 ## Release evidence
 

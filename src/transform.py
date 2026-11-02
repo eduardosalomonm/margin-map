@@ -69,7 +69,15 @@ def allocated_discount(item):
     return round(total, 2)
 
 
-def catalogo(costs):
+def coste_vigente(product, fecha):
+    history = product.get("costes")
+    if fecha is None or not history:
+        return float(product["coste_unitario"])
+    eligible = [entry for entry in history if entry["desde"] <= fecha]
+    return float(max(eligible, key=lambda entry: entry["desde"])["coste_unitario"]) if eligible else None
+
+
+def catalogo(costs, fecha=None):
     """SKU -> nombre y coste, productos y bundles juntos.
 
     El coste de un bundle es la suma de sus componentes. Sin esto, la primera venta
@@ -79,7 +87,7 @@ def catalogo(costs):
     for sku, producto in costs["productos"].items():
         tabla[sku] = {
             "nombre": producto["nombre"],
-            "coste": float(producto["coste_unitario"]),
+            "coste": coste_vigente(producto, fecha),
             "es_bundle": False,
         }
     for bundle in (costs.get("bundles") or {}).values():
@@ -93,7 +101,11 @@ def catalogo(costs):
             if not producto:
                 completo = False
                 break
-            coste += float(producto["coste_unitario"]) * comp.get("uds", 1)
+            unit_cost = coste_vigente(producto, fecha)
+            if unit_cost is None:
+                completo = False
+                break
+            coste += unit_cost * comp.get("uds", 1)
         if completo:
             tabla[sku] = {"nombre": bundle["nombre"], "coste": round(coste, 2),
                           "es_bundle": True}
@@ -175,7 +187,7 @@ def build_rows(snapshot, costs, excluidas=None):
     validate_finite_values(snapshot)
     validate_finite_values(costs)
     tipo_iva = float(costs.get("iva", {}).get("tipo_pct", 21.0))
-    tabla = catalogo(costs)
+    catalogues = {}
     rows = []
     envio_por_pedido = {}
     # What each order originally charged. Payment providers keep their fee when an
@@ -189,6 +201,10 @@ def build_rows(snapshot, costs, excluidas=None):
             excluidas["pedidos_sin_pago"] = excluidas.get("pedidos_sin_pago", 0) + 1
             continue
         fecha = fecha_local(order["createdAt"], zona)
+        cost_date = None if (costs.get("meta") or {}).get("pricing_model") == "scenario" else fecha
+        if cost_date not in catalogues:
+            catalogues[cost_date] = catalogo(costs, cost_date)
+        tabla = catalogues[cost_date]
         codigos = ",".join(order.get("discountCodes") or [])
         incluye_iva = bool(order.get("taxesIncluded"))
         descuento_pedido = money(order, "currentTotalDiscountsSet") or 0.0

@@ -8,7 +8,7 @@ import os
 import sqlite3
 import sys
 
-from config import ConfigError, costs_path, data_source, load_costs, variable_costs
+from config import ConfigError, costs_path, data_source, load_costs, variable_costs, variable_cost_gaps
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.abspath(os.environ.get("PIPELINE_DATA_DIR", os.path.join(BASE, "data")))
@@ -36,8 +36,20 @@ def check_sku_desconocido(conn, costs, res):
         "GROUP BY sku, titulo").fetchall()
     for sku, titulo, unidades in filas:
         res.error("Unknown SKU",
-                  "'%s' (%s): %d units have no declared cost. Their contribution margin does not exist."
+                  "'%s' (%s): %d units have no declared cost for their sale date. Add the SKU or "
+                  "an earlier Cost history entry. Their product margin does not exist."
                   % (sku or "(blank)", titulo, unidades))
+
+
+def check_cost_history(conn, costs, res):
+    if (costs.get("meta") or {}).get("pricing_model") == "scenario":
+        res.aviso("Cost history", "Scenario mode uses current Catalogue costs. Switch to Actual "
+                  "to apply costs by sale date; historical costs are not changed by scenarios.")
+        return
+    undated = [sku for sku, product in costs["productos"].items() if not product.get("costes")]
+    if undated:
+        res.aviso("Cost history", "%d products use an undated cost for every sale. Rebuilding with "
+                  "a different cost changes past margins; declare Cost history to preserve them." % len(undated))
 
 
 def check_precio_catalogo(conn, costs, res):
@@ -281,6 +293,11 @@ def check_costes_variables(conn, costs, res):
     if modelo is None:
         return
     meses = {row[0] for row in conn.execute("SELECT DISTINCT substr(fecha, 1, 7) FROM lineas")}
+    missing = variable_cost_gaps(costs, meses)
+    if missing:
+        res.aviso("Cost coverage", "Incomplete cost model: %s not declared. The result is a "
+                  "known-cost subtotal, not a complete contribution figure. Enter 0 explicitly "
+                  "only when a cost is known to be zero." % "; ".join(missing))
     for mes, importe in sorted(modelo["publicidad"].items()):
         if importe and mes not in meses:
             res.aviso("Variable cost allocation",
@@ -320,10 +337,10 @@ def check_exclusiones(conn, costs, res):
 
 # The single registry of controls. publish.py runs the same set and renders the
 # same names, so a new control is added here once instead of in three places.
-ALL_CHECKS = (check_sku_desconocido, check_precio_catalogo, check_bundles,
+ALL_CHECKS = (check_sku_desconocido, check_cost_history, check_precio_catalogo, check_bundles,
               check_descuentos, check_iva, check_costes_variables, check_exclusiones)
 
-CONTROL_NAMES = ("Unknown SKU", "Catalogue price vs charged price", "Bundle pricing rules",
+CONTROL_NAMES = ("Unknown SKU", "Cost history", "Cost coverage", "Catalogue price vs charged price", "Bundle pricing rules",
                  "Discount rule vs line allocation", "VAT consistency", "Variable cost allocation", "Excluded and adjusted orders")
 
 

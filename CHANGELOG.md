@@ -2,8 +2,22 @@
 
 All notable public changes to Margin Map are recorded here.
 
-## Unreleased
+## 1.3.0 - 2026-11-03
 
+- Reject malformed imported currency codes and encode currency values correctly
+  in HTML and JavaScript, preventing imported text from becoming executable code.
+- Native Excel costs and bundle prices now resolve editable SKUs and component
+  quantities, not the sample catalogue. Array formulas use `LET`, `XLOOKUP` and
+  `TEXTSPLIT` (Excel 365 / 2024), with cache-free recalculation tested in LibreOffice
+  26.8.2. Native Excel was not tested; Python import does not require Excel.
+
+- Added an honest portfolio case and guided promotion comparison: more sales can
+  leave less after costs. Sample decisions are illustrative, not claimed outcomes.
+- Actual mode resolves effective-dated product and bundle costs; Shopify cost
+  observations preserve earlier entries. Scenario mode keeps current-cost what-ifs.
+- Missing variable costs are distinguished from explicit zero in controls and
+  exports. Scenario lab now models declared variable costs, fixed advertising and
+  the order-growth threshold required to preserve the baseline after-cost result.
 - Two independent critique rounds drove adversarial analytical fixes: preserve
   losses across the revenue flow and variable-cost bridge, retain free products
   with costs, show undefined margin rates as unavailable, expose warning details,

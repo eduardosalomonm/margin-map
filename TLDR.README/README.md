@@ -2,8 +2,12 @@
 
 ## I only want to see the finished dashboard
 
-Double-click `OPEN ONLINE DASHBOARD.html` in this folder. It opens the interactive
-dashboard for the Luma Vale sample store in your browser. No installation is required.
+Open `../docs/index.html`, then choose **Explore the decision**. Compare the two
+illustrative offers and change the order-growth assumption. No installation is
+required. [Read the story and its limits](../CASE_STUDY.md).
+
+`OPEN ONLINE DASHBOARD.html` opens the public release, which may differ from the
+current local walkthrough.
 
 ## I want to change the Excel data
 
