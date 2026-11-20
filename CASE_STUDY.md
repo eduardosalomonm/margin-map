@@ -25,7 +25,7 @@ The decision is whether the extra orders compensate for the margin given away.
 ## Follow the calculation
 
 [Open the guided demo](https://marginmap.eilvi.com/#decision-case), or open the
-local dashboard and choose **Explore the decision**. The two presets
+local dashboard and choose **Test the offer**. The two presets
 use the complete imported sample period, 22 October 2025–22 October 2026.
 The same calculation also works on a selected SKU, promotion or date range in
 Scenario lab, where you can edit each assumption.

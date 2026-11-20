@@ -53,6 +53,9 @@ Excel workflow still requires only Python and its standard library.
 - **Overview and Sales performance charts.** Pair the drawing with readable values
   that can be reached by keyboard. Chart text should stay legible at the rendered
   width. Give long labels room to wrap.
+- **Overview.** Give the selected margin the strongest weight among historical
+  KPIs. The sample offer belongs before report filters and should show a calculable
+  result immediately. State the full-period scope at the action.
 - **Dashboard surfaces.** Use restrained borders and a single emphasis per
   section. Reserve status colours for meaning and pair them with explicit text.
   Use the dashboard stylesheet tokens for type, spacing and focus.

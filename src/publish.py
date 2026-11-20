@@ -566,12 +566,18 @@ def main():
     sample = data_source(costs)[1]
     with open(os.path.join(BASE, "src", "decision_case.html"), encoding="utf-8") as handle:
         page = page.replace("{{DECISION_CASE}}", handle.read() if sample else "")
-    case_entry = ('<section class="card case-entry" aria-labelledby="case-title"><div>'
-                  '<p class="eyebrow">Illustrative decision case · Luma Vale</p>'
-                  '<h2 id="case-title">More sales. Less margin. Would you run the offer?</h2>'
-                  '<p>A 20% lower selling price and 30% more orders can lift sales while leaving less '
-                  'after costs. Follow the calculation, then test a smaller discount.</p></div>'
-                  '<button class="export" type="button" id="start-decision-case">Explore the decision</button></section>')
+    case_entry = (
+        '<section class="card case-entry" id="overview-case" aria-labelledby="case-title">'
+        '<div><p class="eyebrow">Luma Vale · sample promotion</p>'
+        '<h2 id="case-title">Would a 20% discount pay off?</h2>'
+        '<p class="case-intro">Model 20% lower prices and 30% more orders.</p>'
+        '<button class="export case-cta" type="button" id="start-decision-case" '
+        'aria-describedby="overview-case-scope">Test the offer</button>'
+        '<p id="overview-case-scope" class="detail">Uses the complete sample period and clears report filters.</p></div>'
+        '<dl class="case-deltas" id="overview-case-deltas" hidden>'
+        '<div><dt>Sales change incl. VAT</dt><dd id="overview-case-sales"></dd></div>'
+        '<div><dt id="overview-case-margin-label">Margin change</dt><dd id="overview-case-margin"></dd></div>'
+        '</dl></section>')
     replacements = {
         "{{CASE_ENTRY}}": case_entry if sample else "",
         "{{COST_BASIS}}": script_json(product_cost_basis(costs)),

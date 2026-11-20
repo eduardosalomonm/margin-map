@@ -90,7 +90,7 @@ constant. Shipping, fulfilment and fixed fees scale with orders; percentage fees
 also follow price. Advertising stays fixed, an assumption rather than proof of
 customer acquisition. Experiments do not change Excel, CSV exports or the PDF.
 
-In the sample store, **Explore the decision** opens an illustrative promotion case.
+In the sample store, **Test the offer** opens an illustrative promotion case.
 Its two preset buttons reset filters to the full imported period. Manual edits or
 filter changes keep your scenario assumptions but no longer select a preset unless
 they match it. See [the case study](CASE_STUDY.md) for the origin and evidence limits.

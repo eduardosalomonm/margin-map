@@ -142,9 +142,28 @@ function applyDecisionPreset(name) {
   document.getElementById('case-heading').focus();
 }
 
+function showSampleImpact() {
+  const base = aggregate(daily);
+  if (!base.units) return;
+  const {price, volume, cost} = decisionPresets.offer;
+  const scenario = calculateScenario(base, price, volume, cost, scenarioModel);
+  const margin = scenarioModel ? scenario.after - base.after : scenario.margin - base.margin;
+  const sales = scenario.gross - base.gross;
+  const signed = value => (value > 0 ? '+' : '') + euro(value);
+  document.getElementById('overview-case-sales').textContent = signed(sales);
+  const marginValue = document.getElementById('overview-case-margin');
+  marginValue.textContent = signed(margin);
+  marginValue.dataset.direction = margin < 0 ? 'down' : margin > 0 ? 'up' : 'flat';
+  document.getElementById('overview-case-margin-label').textContent =
+    scenarioModel ? (scenarioModel.incomplete ? 'Change in known-cost subtotal' : 'Change after variable costs')
+      : 'Change in product margin';
+  document.getElementById('overview-case-deltas').hidden = false;
+}
+
 function setupDecisionCase() {
   const entry = document.getElementById('start-decision-case');
   if (!entry) return;
+  showSampleImpact();
   entry.addEventListener('click', () => applyDecisionPreset('offer'));
   document.querySelectorAll('[data-case-preset]').forEach(button => {
     button.addEventListener('click', () => applyDecisionPreset(button.dataset.casePreset));

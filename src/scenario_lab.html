@@ -27,9 +27,25 @@
 .scenario-comparison .result-row { font-weight: 700; background: var(--accent-soft); }
 #scenario-decision { font-size: 1rem; max-width: 65ch; }
 [data-panel="scenario"] p { max-width: 80ch; }
-.case-entry { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem var(--space); border-inline-start: 3px solid var(--accent); }
-.case-entry > div { flex: 1 1 27rem; min-width: 0; }
-.case-entry p { max-width: 70ch; font-size: .875rem; }
+.case-entry {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  align-items: center;
+  gap: var(--space);
+  border-inline-start: 3px solid var(--accent);
+  padding: 1.1rem 1.25rem;
+}
+.case-entry h2 { font-size: 1.45rem; }
+.case-intro { color: var(--muted); font-size: .875rem; margin: .5rem 0 .75rem; }
+.case-cta { color: #fff; background: var(--accent); border-color: var(--accent); }
+.case-cta:enabled:hover { background: #4135b1; }
+.case-entry .detail { margin-bottom: 0; }
+.case-deltas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: .75rem; margin: 0; }
+.case-deltas > div { border-inline-start: 1px solid var(--rule); padding-inline-start: .75rem; min-width: 0; }
+.case-deltas dt { font-size: .8125rem; color: var(--muted); }
+.case-deltas dd { margin: .2rem 0 0; font-size: 1.4rem; font-weight: 750; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.case-deltas [data-direction="down"] { color: var(--bad); }
+.case-deltas [data-direction="up"] { color: var(--good); }
 .case-buttons { display: flex; flex-wrap: wrap; gap: .5rem; margin: var(--space) 0; }
 .case-buttons [aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .case-buttons [aria-pressed="true"]:hover { background: #4135b1; }
