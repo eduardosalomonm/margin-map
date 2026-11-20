@@ -36,110 +36,150 @@ function calculateScenario(base, priceChange, volumeChange, costChange, variable
   return scenario;
 }
 
+function moneyChange(value) {
+  const rounded = Math.round(value * 100) / 100;
+  return (rounded > 0 ? '+' : '') + euro(rounded === 0 ? 0 : rounded);
+}
+
 function renderScenario() {
-  const controls = ['price', 'volume', 'cost'].map(key => document.getElementById(`scenario-${key}`));
-  document.querySelectorAll('[data-case-preset]').forEach(button => {
+  const get = id => document.getElementById(id);
+  const controls = ['price', 'volume', 'cost'].map(key => get(`scenario-${key}`));
+  for (const button of document.querySelectorAll('[data-case-preset]')) {
     const preset = decisionPresets[button.dataset.casePreset];
-    button.setAttribute('aria-pressed', String(currentPeriod === 'all' && !customRange && !hasFilters() &&
-      ['price', 'volume', 'cost'].every((key, index) => controls[index].value !== '' && Number(controls[index].value) === preset[key])));
-  });
+    button.setAttribute('aria-pressed', String(
+      ['price', 'volume', 'cost'].every((key, index) => controls[index].valueAsNumber === preset[key])
+    ));
+  }
+  const reset = get('scenario-reset');
   if (!controls[0].dataset.ready) {
     controls.forEach(input => input.addEventListener('input', renderScenario));
     controls[0].dataset.ready = 'true';
-    document.getElementById('scenario-reset').addEventListener('click', () => {
+    reset.addEventListener('click', () => {
       controls.forEach(input => { input.value = '0'; });
       renderScenario();
       controls[0].focus();
     });
   }
-  const reset = document.getElementById('scenario-reset');
-  reset.disabled = controls.every(input => input.value !== '' && input.valueAsNumber === 0);
+  reset.disabled = controls.every(input => input.valueAsNumber === 0);
+
   const base = aggregate(periodRows(currentPeriod));
-  const result = document.getElementById('scenario-result');
-  const decision = document.getElementById('scenario-decision');
-  const error = document.getElementById('scenario-error');
-  const comparison = document.getElementById('scenario-comparison-chart');
-  const coverage = document.getElementById('scenario-coverage');
-  const afterLabel = scenarioModel && scenarioModel.incomplete ? 'Known-cost subtotal' : 'After declared variable costs';
+  const result = get('scenario-result');
+  const decision = get('scenario-decision');
+  const error = get('scenario-error');
+  const comparison = get('scenario-comparison-chart');
+  const title = get('scenario-summary-title');
+  const coverage = get('scenario-coverage');
   coverage.textContent = scenarioModel && scenarioModel.incomplete
-    ? 'Incomplete costs: missing inputs remain excluded. This subtotal cannot establish the full contribution margin. See Input assumptions in Data controls.'
-    : scenarioModel ? 'Shipping, fulfilment and fees scale with orders; advertising stays fixed. Overhead is excluded.'
-    : 'Product margin only: fulfilment, payment fees, shipping and advertising are not modelled until declared.';
+    ? 'Some costs are missing. Review Input assumptions in Data controls before using the subtotal.'
+    : scenarioModel ? 'Basket mix and advertising stay fixed. Order growth is a demand assumption.'
+    : 'Product margin covers sales less product costs. Declare fulfilment, fees, shipping and ads to model them.';
+
+  function setResultVisibility(visible) {
+    for (const id of ['scenario-impact', 'scenario-key-figures', 'scenario-comparison-card', 'scenario-breakdown']) {
+      get(id).hidden = !visible;
+    }
+  }
+
+  function showUnavailable(heading, message) {
+    title.textContent = heading;
+    decision.textContent = message;
+    comparison.replaceChildren();
+    result.textContent = message;
+    setResultVisibility(false);
+  }
+
   error.textContent = '';
   for (const input of controls) input.removeAttribute('aria-invalid');
   const invalid = controls.filter(input => input.value === '' || !input.validity.valid);
   if (invalid.length) {
     for (const input of invalid) input.setAttribute('aria-invalid', 'true');
-    error.textContent = 'Enter price change from −90% to 200% and order volume and unit cost changes from −100% to 500%.';
-    result.textContent = 'Correct the assumptions to calculate the scenario.';
-    comparison.innerHTML = '';
-    decision.textContent = '';
+    error.textContent = 'Enter price change from −90% to 200%, and order volume and unit cost changes from −100% to 500%.';
+    showUnavailable('Check the assumptions', 'Enter valid values to calculate the scenario.');
     return;
   }
   if (!base.units) {
-    result.textContent = 'No sales in this selection. Change the dates or reset the filters.';
-    comparison.innerHTML = '';
-    decision.textContent = 'Import sales before modelling a commercial decision.'; return;
+    showUnavailable('No sales in this selection', 'Choose a period or set of filters with recorded sales.');
+    return;
   }
+
   let scenario;
   try {
     scenario = calculateScenario(base, ...controls.map(input => input.valueAsNumber), scenarioModel);
   } catch (failure) {
     error.textContent = failure.message;
-    result.textContent = 'Correct the assumptions to calculate the scenario.';
-    comparison.innerHTML = '';
-    decision.textContent = ''; return;
+    showUnavailable('Scenario unavailable', 'Review the calculation inputs.');
+    return;
   }
+  setResultVisibility(true);
+
   const metrics = [
     ['Sales incl. VAT', base.gross, scenario.gross, euro],
     ['Product cost', base.net - base.margin, scenario.cost, euro],
     ['Units', base.units, scenario.units, number],
-    ['Product margin', base.margin, scenario.margin, euro]
+    ['Product margin', base.margin, scenario.margin, euro],
   ];
   if (scenarioModel) metrics.push(
     ['Shipping charged ex VAT', base.ship, scenario.ship, euro],
     ['Fulfilment', base.fulfil, scenario.fulfil, euro],
     ['Payment fees', base.fees, scenario.fees, euro],
     ['Advertising · fixed', base.ads, scenario.ads, euro],
-    [afterLabel, base.after, scenario.after, euro]
+    [afterCostLabel, base.after, scenario.after, euro],
   );
-  result.innerHTML = '<table class="scenario-comparison"><thead><tr><th scope="col">Metric</th><th scope="col">Baseline</th><th scope="col">Scenario</th><th scope="col">Change</th></tr></thead><tbody>' +
-    metrics.map(([label, before, after, format], index) => `<tr${index === metrics.length - 1 ? ' class="result-row"' : ''}><th scope="row">${label}</th><td>${format(before)}</td><td>${format(after)}</td><td>${format(after - before)}</td></tr>`).join('') + '</tbody></table>';
+  result.innerHTML = '<table class="scenario-comparison"><thead><tr><th scope="col">Metric</th><th scope="col">Baseline</th><th scope="col">Scenario</th><th scope="col">Change</th></tr></thead><tbody>'
+    + metrics.map(([label, before, after, format], index) => `<tr${index === metrics.length - 1 ? ' class="result-row"' : ''}><th scope="row">${label}</th><td>${format(before)}</td><td>${format(after)}</td><td>${format === euro ? moneyChange(after - before) : number(after - before)}</td></tr>`).join('')
+    + '</tbody></table>';
+
   const before = scenarioModel ? base.after : base.margin;
   const after = scenarioModel ? scenario.after : scenario.margin;
-  const name = scenarioModel ? (scenarioModel.incomplete ? 'known-cost subtotal' : 'result after declared variable costs') : 'product margin';
-  const plot = [['Sales incl. VAT', base.gross, scenario.gross], [scenarioModel ? afterLabel : 'Product margin', before, after]];
+  const metric = scenarioModel ? afterCostLabel : 'Product margin';
+  const plot = [['Sales incl. VAT', base.gross, scenario.gross], [metric, before, after]];
   comparison.innerHTML = plot.map(([label, baseline, modelled]) => {
     const scale = Math.max(1, Math.abs(baseline), Math.abs(modelled));
     return `<div class="scenario-plot"><h3>${label}</h3>${[['Baseline', baseline], ['Scenario', modelled]].map(([caption, value]) =>
-      `<div class="scenario-bar-label"><span>${caption}</span><strong>${euro(value)}</strong></div><div class="scenario-track"><span class="${caption === 'Scenario' ? 'modelled' : ''}${value < 0 ? ' negative' : ''}" style="width:${100 * Math.abs(value) / scale}%"></span></div>`).join('')}</div>`;
+      `<div class="scenario-bar-label"><span>${caption}</span><strong>${euro(value)}</strong></div><div class="scenario-track" aria-hidden="true"><span class="${caption === 'Scenario' ? 'modelled' : ''}${value < 0 ? ' negative' : ''}" style="width:${100 * Math.abs(value) / scale}%"></span></div>`).join('')}</div>`;
   }).join('');
+
+  const marginDelta = Math.round((after - before) * 100) / 100;
+  const salesDelta = Math.round((scenario.gross - base.gross) * 100) / 100;
+  const direction = marginDelta < 0 ? 'down' : marginDelta > 0 ? 'up' : 'flat';
+  get('scenario-impact-value').textContent = moneyChange(marginDelta);
+  get('scenario-impact-label').textContent = scenarioModel
+    ? (scenarioModel.incomplete ? 'Change in known-cost subtotal' : 'Margin change after variable costs')
+    : 'Change in product margin';
+  get('scenario-scenario-total').textContent = euro(after);
+  title.closest('.scenario-verdict').dataset.direction = direction;
+  const metricName = scenarioModel && scenarioModel.incomplete ? 'Known-cost subtotal' : 'Margin';
+  title.textContent = salesDelta > 0 && marginDelta < 0 ? `Sales rise. ${metricName} falls.`
+    : `${metricName} ${direction === 'down' ? 'falls' : direction === 'up' ? 'rises' : 'holds'}.`;
+
   const needed = scenarioModel ? scenario.requiredAfterVolumeChange : scenario.requiredVolumeChange;
-  let verdict = scenario.gross > base.gross && after < before
-    ? `Sales rise by ${euro(scenario.gross - base.gross)}, but the ${name} falls by ${euro(before - after)}. More orders do not make this offer better on these assumptions.`
-    : `The ${name} changes by ${euro(after - before)}. This is a modelled outcome, not measured demand.`;
-  if (needed === null) {
-    verdict += after <= 0 ? ' Review price and costs before scaling a loss-making scenario.'
-      : ' There is no positive baseline recovery threshold to report.';
-  } else {
-    verdict += needed >= 0
-      ? ` You need ${pct(needed)} more orders at the same basket mix to preserve baseline ${name}.`
-      : ` Orders could fall by ${pct(-needed)} before ${name} drops below baseline.`;
+  const threshold = needed === null ? null : Math.round(needed * 10) / 10;
+  get('scenario-required-volume').textContent = threshold === null ? 'Unavailable'
+    : (threshold > 0 ? '+' : '') + pct(threshold === 0 ? 0 : threshold);
+  let thresholdNote = before <= 0 ? 'The selected baseline is zero or below.' : 'Extra orders at this price cannot recover the baseline.';
+  if (threshold !== null) {
+    const gap = Math.round((needed - controls[1].valueAsNumber) * 10) / 10;
+    thresholdNote = gap > 0 ? `The order-growth assumption is ${gap.toFixed(1)} percentage points short.`
+      : gap < 0 ? `The order-growth assumption is ${Math.abs(gap).toFixed(1)} percentage points above the threshold.`
+      : 'The order-growth assumption is at the threshold.';
   }
-  decision.textContent = verdict;
+  const salesNote = salesDelta === 0 ? 'Sales hold steady.'
+    : `Sales ${salesDelta > 0 ? 'rise' : 'fall'} by ${euro(Math.abs(salesDelta))}.`;
+  decision.textContent = salesNote + ' ' + thresholdNote;
 }
 
-function applyDecisionPreset(name) {
+function applyDecisionPreset(name, useSamplePeriod = false) {
   const preset = decisionPresets[name];
   if (!preset) return;
-  document.getElementById('reset-view').click();
-  for (const key of ['price', 'volume', 'cost']) document.getElementById(`scenario-${key}`).value = String(preset[key]);
-  document.querySelectorAll('[data-case-preset]').forEach(button => {
-    button.setAttribute('aria-pressed', String(button.dataset.casePreset === name));
-  });
-  activateTab(tabs.find(button => button.dataset.tab === 'scenario'));
+  if (useSamplePeriod) {
+    document.getElementById('reset-view').click();
+    activateTab(tabs.find(button => button.dataset.tab === 'scenario'));
+  }
+  for (const key of ['price', 'volume', 'cost']) {
+    document.getElementById(`scenario-${key}`).value = String(preset[key]);
+  }
   renderScenario();
-  document.getElementById('case-heading').focus();
+  if (useSamplePeriod) document.getElementById('scenario-summary-title').focus({preventScroll: true});
 }
 
 function showSampleImpact() {
@@ -149,10 +189,9 @@ function showSampleImpact() {
   const scenario = calculateScenario(base, price, volume, cost, scenarioModel);
   const margin = scenarioModel ? scenario.after - base.after : scenario.margin - base.margin;
   const sales = scenario.gross - base.gross;
-  const signed = value => (value > 0 ? '+' : '') + euro(value);
-  document.getElementById('overview-case-sales').textContent = signed(sales);
+  document.getElementById('overview-case-sales').textContent = moneyChange(sales);
   const marginValue = document.getElementById('overview-case-margin');
-  marginValue.textContent = signed(margin);
+  marginValue.textContent = moneyChange(margin);
   marginValue.dataset.direction = margin < 0 ? 'down' : margin > 0 ? 'up' : 'flat';
   document.getElementById('overview-case-margin-label').textContent =
     scenarioModel ? (scenarioModel.incomplete ? 'Change in known-cost subtotal' : 'Change after variable costs')
@@ -164,14 +203,17 @@ function setupDecisionCase() {
   const entry = document.getElementById('start-decision-case');
   if (!entry) return;
   showSampleImpact();
-  entry.addEventListener('click', () => applyDecisionPreset('offer'));
+  entry.addEventListener('click', () => {
+    applyDecisionPreset('offer', true);
+    document.getElementById('scenario-summary-title').scrollIntoView({block: 'nearest'});
+  });
   document.querySelectorAll('[data-case-preset]').forEach(button => {
     button.addEventListener('click', () => applyDecisionPreset(button.dataset.casePreset));
   });
   window.addEventListener('hashchange', () => {
-    if (window.location.hash === '#decision-case') applyDecisionPreset('offer');
+    if (window.location.hash === '#decision-case') applyDecisionPreset('offer', true);
   });
-  if (window.location.hash === '#decision-case') applyDecisionPreset('offer');
+  if (window.location.hash === '#decision-case') applyDecisionPreset('offer', true);
 }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { calculateScenario, decisionPresets };

@@ -1,31 +1,92 @@
 <div class="tab-panel" data-panel="scenario" hidden>
-{{DECISION_CASE}}
-<section class="card">
-<div class="section-head"><h2>Test the next commercial move</h2><span>Scenario lab</span></div>
-<p>What remains if selling prices, order volume or supplier costs change? Start with the selected sales, then adjust one assumption at a time.</p>
-<div class="scenario-controls">
-<label for="scenario-price">Selling price change (%)<input id="scenario-price" type="number" aria-describedby="scenario-error" min="-90" max="200" step="any" value="0"></label>
-<label for="scenario-volume">Order volume change (%)<input id="scenario-volume" type="number" aria-describedby="scenario-error" min="-100" max="500" step="any" value="0"></label>
-<label for="scenario-cost">Unit product cost change (%)<input id="scenario-cost" type="number" aria-describedby="scenario-error" min="-100" max="500" step="any" value="0"></label>
-<button id="scenario-reset" type="button" class="export">Reset assumptions</button></div>
-<p id="scenario-error" aria-live="polite"></p><p id="scenario-coverage" class="detail"></p></section>
-<section class="card"><h2>What this means for the offer</h2><p id="scenario-decision" aria-live="polite"></p></section>
-<section class="card" aria-label="Sales and margin comparison"><div id="scenario-comparison-chart"></div></section>
-<section class="card" aria-labelledby="scenario-result-title"><div class="section-head"><h2 id="scenario-result-title">Baseline vs scenario</h2><span>Current period and filters</span></div><div id="scenario-result" class="table-scroll" role="region" aria-labelledby="scenario-result-title" tabindex="0"></div></section>
-<section class="card"><h2>Assumptions and limits</h2>
-<details><summary>Assumptions and calculation scope</summary>
-<p>This is a sensitivity calculation, not a demand forecast. Price changes scale sales after discounts; existing discount rates, VAT treatment, basket size and product mix stay fixed. Order volume scales units and product costs proportionally. Fractional units represent a modelled mix.</p>
-<p>When declared, shipping charged, fulfilment and fixed payment fees scale with orders. The percentage payment fee also changes with selling price. Advertising stays at the selected baseline allocation: more orders do not imply a larger advertising budget or prove that the budget can acquire them. Allocated advertising is not product-level attribution.</p>
-<p>Required order growth preserves the baseline result after declared variable costs, or product margin when no variable costs are declared. Missing costs are excluded from a clearly marked subtotal. Overhead and new refund behaviour are not modelled; recorded adjustments stay in the baseline.</p>
-<p>Experiments stay in this page. They do not change the workbook, recorded sales, CSV exports or executive PDF.</p></details></section></div>
+  <details class="card scenario-scope" id="scenario-scope">
+    <summary>Baseline filters <span id="scenario-scope-label"></span></summary>
+    <div id="scenario-period-slot"></div>
+    <div id="scenario-filter-slot"></div>
+  </details>
+
+  <div class="scenario-workbench">
+    <section class="card scenario-verdict" aria-labelledby="scenario-summary-title">
+      <p class="eyebrow">Change from the selected baseline</p>
+      <h2 id="scenario-summary-title" tabindex="-1">Margin holds</h2>
+      <div id="scenario-impact">
+        <strong class="scenario-amount" id="scenario-impact-value"></strong>
+        <p class="detail" id="scenario-impact-label"></p>
+      </div>
+      <p id="scenario-decision" aria-live="polite"></p>
+      <dl class="scenario-key-figures" id="scenario-key-figures">
+        <div><dt>Scenario result</dt><dd id="scenario-scenario-total"></dd></div>
+        <div><dt>Order growth to hold baseline</dt><dd id="scenario-required-volume"></dd></div>
+      </dl>
+    </section>
+
+    <section class="card scenario-inputs" aria-labelledby="scenario-input-heading">
+      <h2 id="scenario-input-heading">Adjust the assumptions</h2>
+      {{DECISION_CASE}}
+      <div class="scenario-controls">
+        <label for="scenario-price">Selling price change (%)<input id="scenario-price" type="number" aria-describedby="scenario-error" min="-90" max="200" step="any" value="0"></label>
+        <label for="scenario-volume">Order volume change (%)<input id="scenario-volume" type="number" aria-describedby="scenario-error" min="-100" max="500" step="any" value="0"></label>
+        <label for="scenario-cost">Unit product cost change (%)<input id="scenario-cost" type="number" aria-describedby="scenario-error" min="-100" max="500" step="any" value="0"></label>
+      </div>
+      <p id="scenario-error" aria-live="polite"></p>
+      <button id="scenario-reset" type="button" class="export">Reset assumptions</button>
+      <p id="scenario-coverage" class="detail"></p>
+    </section>
+  </div>
+
+  <section class="card" aria-labelledby="scenario-chart-title" id="scenario-comparison-card">
+    <div class="section-head"><h2 id="scenario-chart-title">Baseline and scenario at a glance</h2></div>
+    <div id="scenario-comparison-chart"></div>
+  </section>
+  <details class="card scenario-breakdown" id="scenario-breakdown">
+    <summary id="scenario-result-title">Calculation breakdown</summary>
+    <div id="scenario-result" class="table-scroll" role="region" aria-labelledby="scenario-result-title" tabindex="0"></div>
+  </details>
+  <details class="card scenario-breakdown">
+    <summary>How the model works</summary>
+    <p>Adjustments use the prices customers already paid. Basket mix, units per order, existing discount rates and VAT treatment stay constant. Changes in order volume scale units and product costs proportionally.</p>
+    <p>Shipping charged, fulfilment and fixed payment fees scale with orders when declared. Percentage payment fees also change with the selling price. Advertising stays at the baseline allocation. Extra orders are a demand assumption.</p>
+    <p>The order-growth threshold preserves the selected baseline. Missing costs are excluded from the known-cost subtotal. Overhead and new refund behaviour stay outside the model.</p>
+    <p>These experiments stay in the browser. Recorded sales, the workbook, CSV and PDF use the historical inputs.</p>
+  </details>
+  <details class="card scenario-breakdown">
+    <summary>Historical sales summary</summary>
+    <div id="scenario-history-slot"></div>
+  </details>
+</div>
 <style>
-.scenario-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: .75rem; align-items: end; margin-block: var(--space) .5rem; }
+.scenario-scope, .scenario-breakdown { padding-block: 0; }
+.scenario-scope summary span { color: var(--muted); font-weight: 400; padding-inline-start: .5rem; overflow-wrap: anywhere; }
+.scenario-scope .filters { justify-content: start; padding-bottom: .75rem; }
+.scenario-scope .filter-bar { border: 0; padding: 0 0 var(--space); }
+.scenario-scope .filter-intro { display: none; }
+.scenario-scope .filter-options { flex: 1; }
+.scenario-breakdown .table-scroll, .scenario-breakdown .kpis { margin-bottom: var(--space); }
+.scenario-workbench { display: grid; grid-template-columns: minmax(0, 1.16fr) minmax(0, 1fr); gap: var(--space); }
+.scenario-verdict { border-top: 3px solid var(--accent); padding: 1.1rem 1.25rem; }
+.scenario-verdict h2 { width: fit-content; max-width: 100%; font-size: 1.35rem; }
+.scenario-amount { display: block; margin-top: .7rem; font-size: 2.4rem; line-height: 1.06; letter-spacing: -.05em; overflow-wrap: anywhere; }
+.scenario-verdict[data-direction="down"] .scenario-amount { color: var(--bad); }
+.scenario-verdict[data-direction="up"] .scenario-amount { color: var(--good); }
+#scenario-impact-label { margin: .3rem 0 0; }
+.scenario-key-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: .75rem; border-top: 1px solid var(--rule); margin: .75rem 0 0; padding-top: .75rem; }
+.scenario-key-figures dt { color: var(--muted); font-size: .8125rem; }
+.scenario-key-figures dd { margin: .2rem 0 0; font-weight: 700; font-size: 1.08rem; overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  .scenario-workbench { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 580px) {
+  .scenario-scope summary span { display: block; padding: .2rem 0 0; }
+  .scenario-amount { font-size: 2rem; }
+}
+
+.scenario-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: .75rem; align-items: end; margin-block: .75rem; }
 .scenario-controls label { font-size: .875rem; display: grid; gap: .4rem; min-width: 0; }
 .scenario-controls input { min-width: 0; width: 100%; min-height: 44px; padding: .5rem .625rem; border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--ink); background: var(--card); }
-#scenario-error { color: var(--bad); }
+#scenario-error { color: var(--bad); font-size: .875rem; }
 .scenario-comparison { min-width: 28rem; }
 .scenario-comparison .result-row { font-weight: 700; background: var(--accent-soft); }
-#scenario-decision { font-size: 1rem; max-width: 65ch; }
+#scenario-decision { font-size: .9375rem; margin: .5rem 0 .75rem; max-width: 52ch; }
 [data-panel="scenario"] p { max-width: 80ch; }
 .case-entry {
   display: grid;
@@ -46,10 +107,10 @@
 .case-deltas dd { margin: .2rem 0 0; font-size: 1.4rem; font-weight: 750; letter-spacing: -.03em; overflow-wrap: anywhere; }
 .case-deltas [data-direction="down"] { color: var(--bad); }
 .case-deltas [data-direction="up"] { color: var(--good); }
-.case-buttons { display: flex; flex-wrap: wrap; gap: .5rem; margin: var(--space) 0; }
+.decision-case { margin-top: .75rem; }
+.case-buttons { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .25rem; }
 .case-buttons [aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .case-buttons [aria-pressed="true"]:hover { background: #4135b1; }
-.case-steps { padding-inline-start: 1.25em; display: grid; gap: .5rem; }
 #scenario-comparison-chart { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--space); }
 .scenario-plot h3 { margin-bottom: .75rem; }
 .scenario-bar-label { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .25rem .5rem; font-size: .875rem; margin: .6rem 0 .25rem; }

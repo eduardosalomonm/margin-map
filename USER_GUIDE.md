@@ -78,11 +78,12 @@ the dashboard as `output/executive-summary.pdf`.
 ### Test a decision in Scenario lab
 
 Choose your period, SKU, product type or promotion first. Open **Scenario lab**,
-then adjust selling price, volume or unit product cost. The baseline always
-follows your current filters. **Reset assumptions** restores all three changes
-to zero; changing filters keeps your assumptions so you can compare segments.
+then adjust selling price, volume or unit product cost. **Baseline filters**
+shows the current scope and expands to the report filters. **Reset assumptions**
+restores all three changes to zero. Changing filters keeps the assumptions so
+you can compare segments.
 
-The final row shows the result after declared variable costs, or product margin
+The verdict and the final row under **Calculation breakdown** show the result after declared variable costs, or product margin
 if no variable-cost model exists. Missing inputs produce a marked known-cost
 subtotal, never a claim of full contribution or net profit. The required order
 growth preserves that baseline while holding basket mix, discount rates and VAT
@@ -90,10 +91,10 @@ constant. Shipping, fulfilment and fixed fees scale with orders; percentage fees
 also follow price. Advertising stays fixed, an assumption rather than proof of
 customer acquisition. Experiments do not change Excel, CSV exports or the PDF.
 
-In the sample store, **Test the offer** opens an illustrative promotion case.
-Its two preset buttons reset filters to the full imported period. Manual edits or
-filter changes keep your scenario assumptions but no longer select a preset unless
-they match it. See [the case study](CASE_STUDY.md) for the origin and evidence limits.
+In the sample store, **Test the offer** opens the illustrative promotion case
+using the complete imported period. Inside Scenario lab, the two sample presets
+change the assumptions for the current selection. A preset stays selected while
+its assumptions match the fields. See [the case study](CASE_STUDY.md) for the origin and evidence limits.
 
 ### Historical product costs
 

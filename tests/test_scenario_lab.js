@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { calculateScenario, decisionPresets } = require('../src/scenario_lab.js');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
+const { runInNewContext } = require('node:vm');
 const base = { gross: 1210, net: 1000, margin: 400, units: 100 };
 test('neutral assumptions preserve the baseline', () => {
   const result = calculateScenario(base, 0, 0, 0);
@@ -89,4 +90,42 @@ test('portfolio decisions reconcile with the generated sample dashboard', () => 
   for (const value of [baseline.after, offer.after, alternative.after]) {
     assert.ok(story.includes(new Intl.NumberFormat('en-IE', {style:'currency',currency:'EUR'}).format(value)));
   }
+});
+
+
+test('scenario presets preserve filters and the public case explicitly opens the full period', () => {
+  const script = readFileSync(join(__dirname, '../src/scenario_lab.js'), 'utf8');
+  const preset = script.slice(script.indexOf('function applyDecisionPreset('), script.indexOf('function showSampleImpact('));
+  const fields = {'scenario-price': {}, 'scenario-volume': {}, 'scenario-cost': {}};
+  let period = 'month';
+  let opened = false;
+  let focused = false;
+  const elements = {
+    ...fields,
+    'reset-view': {click() { period = 'all'; }},
+    'scenario-summary-title': {focus() { focused = true; }},
+  };
+  const scenarioTab = {dataset: {tab: 'scenario'}};
+  const context = {
+    decisionPresets,
+    document: {getElementById: id => elements[id]},
+    tabs: [scenarioTab],
+    activateTab(tab) { opened = tab === scenarioTab; },
+    renderScenario() {},
+  };
+  runInNewContext(preset, context);
+
+  context.applyDecisionPreset('alternative');
+  assert.equal(period, 'month');
+  assert.equal(opened, false);
+  assert.equal(focused, false);
+  assert.equal(fields['scenario-price'].value, '-10');
+  assert.equal(fields['scenario-volume'].value, '20');
+
+  context.applyDecisionPreset('offer', true);
+  assert.equal(period, 'all');
+  assert.equal(opened, true);
+  assert.equal(focused, true);
+  assert.equal(fields['scenario-price'].value, '-20');
+  assert.equal(fields['scenario-volume'].value, '30');
 });

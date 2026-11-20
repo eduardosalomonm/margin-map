@@ -56,6 +56,10 @@ Excel workflow still requires only Python and its standard library.
 - **Overview.** Give the selected margin the strongest weight among historical
   KPIs. The sample offer belongs before report filters and should show a calculable
   result immediately. State the full-period scope at the action.
+- **Scenario lab.** Show the change from the selected baseline, the modelled
+  result and the recovery threshold together. Keep report filters reachable.
+  A preset changes its assumptions, and the explicitly labelled Overview action
+  opens the complete sample case.
 - **Dashboard surfaces.** Use restrained borders and a single emphasis per
   section. Reserve status colours for meaning and pair them with explicit text.
   Use the dashboard stylesheet tokens for type, spacing and focus.
