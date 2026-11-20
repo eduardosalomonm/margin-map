@@ -23,7 +23,9 @@ Run rebuilds from an isolated copy of the public repository, not the private
 runtime. Always use the committed synthetic workbook for reproducibility; the
 workbook generator intentionally rolls dates forward when called separately.
 
-- Inspect the PDF, dashboard and screenshots visually, including mobile.
+- Inspect the PDF and dashboard visually at desktop, tablet and phone widths.
+- Check the Overview, the Scenario lab and data tables at 200% text size.
+  Tab through the controls and scroll a wide table with the keyboard.
 - Check that the synthetic-data notice and calculation scope remain visible.
 - Exercise dates, SKU, promotions, tabs, reset, PDF and CSV downloads.
 - Verify public URL without authentication and remote CI after release.

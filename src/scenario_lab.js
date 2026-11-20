@@ -47,9 +47,13 @@ function renderScenario() {
     controls.forEach(input => input.addEventListener('input', renderScenario));
     controls[0].dataset.ready = 'true';
     document.getElementById('scenario-reset').addEventListener('click', () => {
-      controls.forEach(input => { input.value = '0'; }); renderScenario();
+      controls.forEach(input => { input.value = '0'; });
+      renderScenario();
+      controls[0].focus();
     });
   }
+  const reset = document.getElementById('scenario-reset');
+  reset.disabled = controls.every(input => input.value !== '' && input.valueAsNumber === 0);
   const base = aggregate(periodRows(currentPeriod));
   const result = document.getElementById('scenario-result');
   const decision = document.getElementById('scenario-decision');
@@ -62,6 +66,16 @@ function renderScenario() {
     : scenarioModel ? 'Shipping, fulfilment and fees scale with orders; advertising stays fixed. Overhead is excluded.'
     : 'Product margin only: fulfilment, payment fees, shipping and advertising are not modelled until declared.';
   error.textContent = '';
+  for (const input of controls) input.removeAttribute('aria-invalid');
+  const invalid = controls.filter(input => input.value === '' || !input.validity.valid);
+  if (invalid.length) {
+    for (const input of invalid) input.setAttribute('aria-invalid', 'true');
+    error.textContent = 'Enter price change from −90% to 200% and order volume and unit cost changes from −100% to 500%.';
+    result.textContent = 'Correct the assumptions to calculate the scenario.';
+    comparison.innerHTML = '';
+    decision.textContent = '';
+    return;
+  }
   if (!base.units) {
     result.textContent = 'No sales in this selection. Change the dates or reset the filters.';
     comparison.innerHTML = '';
@@ -69,7 +83,7 @@ function renderScenario() {
   }
   let scenario;
   try {
-    scenario = calculateScenario(base, ...controls.map(input => input.value === '' ? NaN : Number(input.value)), scenarioModel);
+    scenario = calculateScenario(base, ...controls.map(input => input.valueAsNumber), scenarioModel);
   } catch (failure) {
     error.textContent = failure.message;
     result.textContent = 'Correct the assumptions to calculate the scenario.';

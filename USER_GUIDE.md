@@ -56,11 +56,11 @@ Excel input needs attention; copy that complete message when asking for help.
 
 Use the period menu in the dashboard for the latest 7 calendar days, month to date
 or the complete imported period. Select **Custom date range** to reveal two calendar inputs. Choose a start
-and end date, then select **Apply**. Every tab, KPI, chart, promotion table and
+and end date, then select **Apply dates**. The previous dates remain active while you edit. Commercial KPIs, charts, promotion tables and
 CSV export refreshes to that selected range. The period-change card compares the
 range with the immediately preceding range of the same length.
 
-Use the **Refine the view** bar to filter any selected range by SKU, product versus
+Use **Report filters** to filter any selected range by SKU, product versus
 bundle, or promotion code. These filters refresh commercial KPIs, charts, product
 economics, promotions and the CSV export; Inventory health remains the latest
 stock-position view. The filter bar states the exact active scope; use **Reset

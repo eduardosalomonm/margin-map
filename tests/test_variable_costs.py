@@ -225,7 +225,8 @@ class TestReporting(unittest.TestCase):
         with open(os.path.join(ROOT, "src", "panel_template.html"), encoding="utf-8") as handle:
             template = handle.read()
         self.assertIn("hasVariable={{VARIABLE_COSTS}}", template)
-        self.assertIn(".no-variable .var-col", template)
+        with open(os.path.join(ROOT, "src", "dashboard.css"), encoding="utf-8") as handle:
+            self.assertIn(".no-variable .var-col", handle.read())
         self.assertIn("no-var-only", template)
 
 

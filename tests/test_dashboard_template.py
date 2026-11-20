@@ -25,7 +25,6 @@ class TestDashboardTemplate(unittest.TestCase):
         self.assertIn("not net profit", footer)
         self.assertIn("Returns and refunds are deducted when the order data records them", footer)
         self.assertIn("Source: {{SOURCE_LABEL}}", footer)
-        self.assertIn("footer{font-size:13px;line-height:1.5}", self.template)
 
     def test_uses_portable_last_date_selection(self):
         self.assertIn("dates[dates.length-1]", self.template)
@@ -36,9 +35,11 @@ class TestDashboardTemplate(unittest.TestCase):
         self.assertIn("Revenue flow from list price to product margin", self.template)
 
     def test_navigation_remains_available_on_small_screens(self):
-        self.assertIn("@media(max-width:1020px)", self.template)
-        self.assertIn("display:flex!important", self.template)
-        self.assertIn("overflow-x:auto", self.template)
+        with open(os.path.join(ROOT, "src", "dashboard.css"), encoding="utf-8") as handle:
+            stylesheet = handle.read()
+        self.assertIn("grid-template-columns: repeat(auto-fit", stylesheet)
+        self.assertIn('href="#main-content"', self.template)
+        self.assertIn("setTabOrientation", self.template)
 
     def test_tabs_expose_keyboard_and_assistive_semantics(self):
         self.assertIn('role="tablist"', self.template)

@@ -29,21 +29,42 @@ window.drawSankey=function(data){
   const svg=document.getElementById("sankey"); if(!svg)return;
   const list=Math.max(0,data.listed||0),afterDiscount=Math.max(0,data.gross||0),net=Math.max(0,data.net||0);
   const discount=Math.max(0,data.discount||0),vat=Math.max(0,afterDiscount-net),cost=Math.max(0,net-data.margin),contribution=Math.max(0,data.margin||0);
-  if(!list){svg.innerHTML='<text x="380" y="135" text-anchor="middle" fill="#77809e" font-size="13">No sales in this selection</text>';return;}
-  const share=value=>(100*value/list).toFixed(1)+"% of list price";
+  const values=document.getElementById('flow-values');
+  if(!list && !data.margin){
+    const empty='No sales in this selection';
+    svg.setAttribute('aria-label',empty);
+    svg.innerHTML='<text x="380" y="135" text-anchor="middle" font-size="14">'+empty+'</text>';
+    if(values) values.innerHTML='<div><dt>'+empty+'</dt></div>';
+    return;
+  }
+  const share=value=>list ? (100*value/list).toFixed(1)+"% of list price" : '';
+  const lines=[['List price',list],['Discounts',-discount],['After discounts',afterDiscount],['VAT',-vat],
+               ['Net revenue',net],['Product cost',-cost],['Product margin',data.margin]];
+  if(values) values.innerHTML=lines.map(([name,value])=>
+    '<div><dt>'+name+'</dt><dd>'+esc(euro(value))+(list ? ' <small>'+share(value)+'</small>' : '')+'</dd></div>').join('');
   if(data.margin<0){
     svg.setAttribute('aria-label','Negative product margin: product cost exceeds net revenue. Signed breakdown shown instead of a positive-flow Sankey.');
-    const lines=[['List price',list],['Discounts',-discount],['VAT',-vat],['Net revenue',net],['Product cost',-cost],['Product margin',data.margin]];
-    svg.innerHTML='<text x="20" y="24" fill="#b54b55" font-size="14" font-weight="700">Product cost exceeds net revenue</text>'+lines.map(([name,value],i)=>'<text x="20" y="'+(59+i*36)+'" fill="#252a4a" font-size="12">'+name+'</text><text x="720" y="'+(59+i*36)+'" text-anchor="end" fill="'+(value<0?'#b54b55':'#252a4a')+'" font-size="12">'+esc(euro(value))+' · '+share(value)+'</text>').join('');return;
+    svg.innerHTML='<text x="20" y="24" fill="#b54b55" font-size="14" font-weight="700">Product cost exceeds net revenue</text>'+lines.map(([name,value],i)=>'<text x="20" y="'+(53+i*33)+'" fill="#252a4a" font-size="12">'+name+'</text><text x="720" y="'+(53+i*33)+'" text-anchor="end" fill="'+(value<0?'#b54b55':'#252a4a')+'" font-size="12">'+esc(euro(value))+(list ? ' · '+share(value) : '')+'</text>').join('');return;
   }
   const h=value=>120*value/list,listH=h(list),afterH=h(afterDiscount),discountH=h(discount),netH=h(net),vatH=h(vat),costH=h(cost),contributionH=h(contribution);
   const sourceY=62,mainY=62,lossY=194;
   const flow=(x1,y1,height1,x2,y2,height2,color)=>{const mid=(x1+x2)/2;return '<path d="M'+x1+','+y1+' C'+mid+','+y1+' '+mid+','+y2+' '+x2+','+y2+' L'+x2+','+(y2+height2)+' C'+mid+','+(y2+height2)+' '+mid+','+(y1+height1)+' '+x1+','+(y1+height1)+' Z" fill="'+color+'" opacity=".82"/>';};
   const node=(x,y,height,color)=>'<rect x="'+x+'" y="'+y+'" width="13" height="'+height+'" rx="4" fill="'+color+'"/>';
-  const label=(x,y,name,value,align)=>'<text x="'+x+'" y="'+y+'" text-anchor="'+(align||'start')+'" fill="#252a4a" font-size="11" font-weight="700">'+name+'</text><text x="'+x+'" y="'+(y+14)+'" text-anchor="'+(align||'start')+'" fill="#77809e" font-size="10">'+euro(value)+' · '+share(value)+'</text>';
+  const label=(x,y,name,value,align)=>'<text x="'+x+'" y="'+y+'" text-anchor="'+(align||'start')+'" fill="#252a4a" font-size="11" font-weight="700">'+name+'</text><text x="'+x+'" y="'+(y+14)+'" text-anchor="'+(align||'start')+'" fill="#58627b" font-size="10">'+euro(value)+' · '+share(value)+'</text>';
   svg.setAttribute("aria-label","Revenue flow: list price, discounts, VAT, cost and product margin.");
   svg.innerHTML=flow(33,sourceY,afterH,195,mainY,afterH,"#5a4fe8")+flow(33,sourceY+afterH,discountH,195,lossY,discountH,"#dd655f")+flow(208,mainY,netH,375,mainY,netH,"#5a4fe8")+flow(208,mainY+netH,vatH,375,lossY,vatH,"#aeb7ca")+flow(388,mainY,contributionH,555,mainY,contributionH,"#3e9f9a")+flow(388,mainY+contributionH,costH,555,lossY,costH,"#dd655f")+node(20,sourceY,listH,"#5a4fe8")+node(195,mainY,afterH,"#5a4fe8")+node(195,lossY,discountH,"#dd655f")+node(375,mainY,netH,"#5a4fe8")+node(375,lossY,vatH,"#aeb7ca")+node(555,mainY,contributionH,"#3e9f9a")+node(555,lossY,costH,"#dd655f")+label(20,24,"List price",list)+label(195,24,"After discounts",afterDiscount)+label(375,24,"Net revenue ex VAT",net)+label(555,24,"Product margin",contribution)+label(195,270,"Discounts",discount)+label(375,270,"VAT",vat)+label(555,270,"Product cost",cost);
 };
+const flowGraphic=document.getElementById('sankey'),flowDetails=document.querySelector('.flow-values');
+if(flowDetails && typeof ResizeObserver!=='undefined'){
+  let compact;
+  new ResizeObserver(()=>{
+    if(!flowDetails.closest('.tab-panel').hidden){
+      const next=getComputedStyle(flowGraphic).display==='none';
+      if(next!==compact) flowDetails.open=next;
+      compact=next;
+    }
+  }).observe(flowDetails.parentElement);
+}
 document.getElementById("period").dispatchEvent(new Event("change"));
 </script>'''
 OUTPUT = os.environ.get("PANEL_OUT") or os.path.join(BASE, "panel.html")
@@ -333,7 +354,7 @@ def cost_assumptions(costs, months):
                  "Shipping VAT uses the store's configured rate."))
     rows.append(("Refund timing", "Order-date view", "Adjusted sales remain on the original order date. "
                  "Shopify event-date reports can differ; this is not a cash-flow report."))
-    return '<table><thead><tr><th>Input</th><th>Basis</th><th>How to read it</th></tr></thead><tbody>' + "".join(
+    return '<table><thead><tr><th scope="col">Input</th><th scope="col">Basis</th><th scope="col">How to read it</th></tr></thead><tbody>' + "".join(
         "<tr><th scope='row'>%s</th><td>%s</td><td>%s</td></tr>" % tuple(html.escape(value) for value in row)
         for row in rows) + "</tbody></table>"
 
@@ -358,12 +379,12 @@ def product_rows(products):
     output = []
     for product in products:
         if product["cost"] is None or product["margin"] is None:
-            output.append("<tr><td><strong>%s</strong><span>%s</span></td><td>%s</td><td>%s</td>"
+            output.append("<tr><th scope='row'><strong>%s</strong><span class='product-sku'>%s</span></th><td>%s</td><td>%s</td>"
                           "<td colspan='2' class='negative'>No declared cost</td></tr>" %
                           (html.escape(product["name"]), html.escape(product["sku"]), product["units"],
                            currency(product["gross"])))
             continue
-        output.append("<tr><td><strong>%s</strong><span>%s</span></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
+        output.append("<tr><th scope='row'><strong>%s</strong><span class='product-sku'>%s</span></th><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
                       (html.escape(product["name"]), html.escape(product["sku"]), product["units"],
                        currency(product["gross"]), currency(product["margin"]), percent(product["margin_pct"])))
     return "\n".join(output)
@@ -432,7 +453,7 @@ def inventory_block(rows):
         cover = ("%.1f weeks" % row["cover_weeks"]) if row["cover_weeks"] is not None else "no demand"
         width = min(100, (row["cover_weeks"] or 0) / 26 * 100)
         output.append(
-            "<tr><td><strong>%s</strong><span>%s</span></td><td>%s</td><td>%s</td>"
+            "<tr><th scope='row'><strong>%s</strong><span class='inventory-sku'>%s</span></th><td>%s</td><td>%s</td>"
             "<td>%.1f/week</td><td><div class='cover-bar'><i class='%s' style='width:%.0f%%'></i>"
             "</div><span>%s</span></td><td><span class='pill %s'>%s</span></td></tr>"
             % (html.escape(row["name"]), html.escape(row["sku"]), "{:,}".format(row["stock"]),
@@ -463,7 +484,7 @@ def controls_block(result):
         messages = [message for control, message in result.errores + result.avisos if control == name]
         details = ("<ul>%s</ul>" % "".join("<li>%s</li>" % html.escape(message) for message in messages)
                    if messages else "")
-        rows.append("<tr><td>%s%s</td><td>%s</td></tr>" % (html.escape(name), details, state))
+        rows.append("<tr><th scope='row'>%s%s</th><td>%s</td></tr>" % (html.escape(name), details, state))
     return "\n".join(rows)
 
 
@@ -531,6 +552,8 @@ def main():
         return 1
     with open(TEMPLATE, "r", encoding="utf-8") as handle:
         page = handle.read()
+    with open(os.path.join(BASE, "src", "dashboard.css"), encoding="utf-8") as handle:
+        page = page.replace("{{DASHBOARD_STYLE}}", handle.read())
     with open(os.path.join(BASE, "src", "scenario_lab.html"), encoding="utf-8") as handle:
         page = page.replace("<footer>", handle.read() + "<footer>")
     page = page.replace("</nav>", '<button type="button" role="tab" id="tab-scenario" '

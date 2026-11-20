@@ -41,5 +41,21 @@ Excel workflow still requires only Python and its standard library.
 - Escape imported store text before inserting it into HTML and neutralise
   formula-like text before writing spreadsheet-compatible exports.
 
+## Dashboard design checks
+
+- **Report filters and navigation.** Use a visible focus ring, 44px control targets
+  and text sizes that follow the browser's font setting. Check phone and tablet
+  layouts and 200% text size. A date draft keeps the last applied range until
+  the user applies it.
+- **Product economics, Promotions, Inventory health and Data controls.** Keep
+  titles and actions outside scrollable tables. Give each wide table a named,
+  keyboard-focusable scroll region. Selecting a product keeps focus on its row.
+- **Overview and Sales performance charts.** Pair the drawing with readable values
+  that can be reached by keyboard. Chart text should stay legible at the rendered
+  width. Give long labels room to wrap.
+- **Dashboard surfaces.** Use restrained borders and a single emphasis per
+  section. Reserve status colours for meaning and pair them with explicit text.
+  Use the dashboard stylesheet tokens for type, spacing and focus.
+
 For private Shopify usage, use local `.env` and `costs.private.json` files. They
 are excluded from Git by design.

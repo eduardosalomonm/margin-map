@@ -13,11 +13,12 @@ test('zero-revenue products retain their cost and losses',()=>{
 });
 test('variable cost bridge preserves a negative starting margin',()=>{
   const nodes={};
-  const context={hasVariable:true,document:{getElementById:id=>nodes[id]||(nodes[id]={})},euro:v=>`EUR ${v}`,pct:String};
+  const context={hasVariable:true,afterCostLabel:'Known-cost subtotal',document:{getElementById:id=>nodes[id]||(nodes[id]={})},euro:v=>`EUR ${v}`,pct:String};
   vm.createContext(context);vm.runInContext(functionSource('renderLadder','renderSpotlight'),context);
   context.renderLadder({margin:-20,ship:0,fulfil:5,fees:0,ads:0,after:-25,net:10,afterPerOrder:-25},'Selected view');
   assert.match(nodes.ladder.innerHTML,/EUR -20/);
   assert.match(nodes.ladder.innerHTML,/EUR -25/);
+  assert.match(nodes.ladder.innerHTML,/Known-cost subtotal/);
 });
 test('growth distinguishes missing baseline from genuine flat or falling sales',()=>{
   const context={};vm.createContext(context);vm.runInContext(functionSource('growthRate','sum'),context);
@@ -36,9 +37,11 @@ test('negative contribution is explicitly signed rather than clamped in the flow
   const source=fs.readFileSync(require.resolve('../src/publish.py'),'utf8');
   const script=source.split("SANKEY_SCRIPT = r'''<script>")[1].split('</script>')[0];
   const svg={innerHTML:'',setAttribute(){},dispatchEvent(){}};
-  const context={window:{},document:{getElementById:()=>svg},Event:class{},esc:String,euro:v=>`EUR ${v}`};
+  const values={innerHTML:''};
+  const context={window:{},document:{getElementById:id=>id==='flow-values'?values:svg,querySelector:()=>null},Event:class{},esc:String,euro:v=>`EUR ${v}`};
   vm.createContext(context);vm.runInContext(script,context);
   context.window.drawSankey({listed:100,gross:100,net:80,margin:-20,discount:0});
   assert.match(svg.innerHTML,/EUR -20/);assert.match(svg.innerHTML,/-20.0% of list price/);
   assert.match(svg.innerHTML,/Product cost exceeds net revenue/);
+  assert.match(values.innerHTML,/Product margin<\/dt><dd>EUR -20/);
 });
