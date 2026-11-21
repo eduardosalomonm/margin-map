@@ -580,6 +580,12 @@ def main():
         '</dl></section>')
     replacements = {
         "{{CASE_ENTRY}}": case_entry if sample else "",
+        "{{PAGE_DESCRIPTION}}": (
+            "Try two sample promotions. See how sales and margin after costs change "
+            "and how many more orders would hold the baseline."
+            if sample else
+            "Model how changes in price, order volume and product costs affect your e-commerce margin."
+        ),
         "{{COST_BASIS}}": script_json(product_cost_basis(costs)),
         "{{COST_ASSUMPTIONS}}": cost_assumptions(costs, months),
         "{{COST_COVERAGE_NOTICE}}": ('<section class="integrity issue" role="status"><div>'

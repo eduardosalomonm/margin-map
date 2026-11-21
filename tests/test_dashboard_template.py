@@ -14,8 +14,8 @@ class TestDashboardTemplate(unittest.TestCase):
             cls.template = handle.read()
 
     def test_product_name_preserves_store_identity(self):
-        self.assertIn('<title>Margin Map · {{BRAND}} · Shopify margin dashboard</title>', self.template)
-        self.assertIn('MARGIN MAP<small>Margins for Shopify stores</small>', self.template)
+        self.assertIn('<title>Margin Map · {{BRAND}} · E-commerce margin analysis</title>', self.template)
+        self.assertIn('MARGIN MAP<small>E-commerce margin analysis</small>', self.template)
         # The version stays traceable without being part of the reading surface.
         self.assertIn('<meta name="generator" content="Margin Map {{APP_VERSION}}">', self.template)
 

@@ -114,6 +114,6 @@ python3 -m unittest discover -s tests -v
 node --test tests/test_*.js
 ```
 
-Select **Explore the decision**, inspect the 20% offer, try the 10% alternative,
+Select **Test the offer**, inspect the 20% offer, try the 10% alternative,
 then change the volume assumption. Use **Data controls → Input assumptions**
 to inspect what the calculation knows and what it assumes.

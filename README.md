@@ -1,14 +1,13 @@
 # Margin Map
 
-**Understand what remains after costs before changing prices or promotions.**
+**Model a promotion and see how many more orders you need to hold your margin.**
 
 [![Verification](https://github.com/eduardosalomonm/margin-map/actions/workflows/verify.yml/badge.svg)](https://github.com/eduardosalomonm/margin-map/actions/workflows/verify.yml)
 
-Margin Map connects to a Shopify store through the Admin API with read-only
-access, combines its orders with the store's product costs, and produces an
-interactive margin dashboard and a one-page executive PDF. Stores on other
-platforms (WooCommerce, PrestaShop, marketplaces) get the same analysis by
-pasting an order export into the included Excel template.
+Margin Map compares sales and margin after declared costs for an e-commerce
+promotion. In Scenario lab, change selling price, order volume or product cost to
+see what remains and how many orders would hold your selected baseline. Build the
+dashboard and executive PDF from a read-only Shopify import or the Excel template.
 
 **[Try the decision →](https://marginmap.eilvi.com/#decision-case)** ·
 **[Read the case →](CASE_STUDY.md)** ·
@@ -18,14 +17,14 @@ pasting an order export into the included Excel template.
 ![Margin Map dashboard for the Luma Vale sample store](assets/dashboard-overview.png)
 
 The public example uses **Luma Vale**, a synthetic store. Follow the guided offer
-comparison online, or open `docs/index.html` locally and choose **Explore the decision**.
+comparison online, or open `docs/index.html` locally and choose **Test the offer**.
 
-## A decision, not just a dashboard
+## Try a promotion decision
 
-Would you reduce prices by 20% to get 30% more orders? In the illustrative case,
-sales rise 4%, but the result after declared variable costs falls. The demo compares
-that offer with a smaller discount, shows the order-growth threshold needed to
-preserve margin, and exposes the assumptions behind both outcomes.
+In the sample store, a 20% discount with 30% more orders raises sales by
+€3,350.22 and cuts margin after declared variable costs by €3,521.07. Holding
+the baseline would require 40.5% more orders. Try the smaller offer or edit the
+assumptions to see what changes.
 
 The project grew from using dashboards to understand my own business's numbers.
 The public case does **not** claim a historical campaign, measured financial uplift

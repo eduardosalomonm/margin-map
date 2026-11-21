@@ -2,7 +2,7 @@
 
 ## I only want to see the finished dashboard
 
-Open `../docs/index.html`, then choose **Explore the decision**. Compare the two
+Open `../docs/index.html`, then choose **Test the offer**. Compare the two
 illustrative offers and change the order-growth assumption. No installation is
 required. [Read the story and its limits](../CASE_STUDY.md).
 
